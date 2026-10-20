@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-cairo: 'Cairo', 'IBM Plex Sans Arabic', 'Tajawal', system-ui, sans-serif;
+  }
+}
+
+html, body {
+  font-family: var(--font-cairo);
+  letter-spacing: normal !important;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6, .font-display {
+  font-family: var(--font-cairo);
+  letter-spacing: normal !important;
+  line-height: 1.4;
+}
+
+/* Prevent clipping of Arabic letter dots (ن، ت، ث، ي، ق، ف، ش، ض) */
+span, p, h1, h2, h3, h4, a, button, input, textarea, select {
+  overflow-wrap: break-word;
+}
+
+/* Blueprint Grid Background */
+.blueprint-grid {
+  background-image: 
+    linear-gradient(to right, rgba(14, 165, 233, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(14, 165, 233, 0.07) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.blueprint-grid-dark {
+  background-image: 
+    linear-gradient(to right, rgba(232, 135, 30, 0.09) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(232, 135, 30, 0.09) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(232, 135, 30, 0.6);
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
