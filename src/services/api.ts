@@ -1,5 +1,6 @@
 import {
-  Lesson, StudentCode, StudentUser, ForumPost, ForumAnswer, PlatformNotification, GradeType
+  Lesson, StudentCode, StudentUser, ForumPost, ForumAnswer, PlatformNotification, GradeType,
+  Exam, ExamResult, ExamResultRow, Account, AccountInfo, ExamReviewItem
 } from '../types';
 
 // Public values (safe in the browser). Security is enforced by RLS + SECURITY DEFINER functions.
@@ -108,6 +109,122 @@ export function teacherLogout() {
 }
 
 // ---------------------------------------------------------------------------
+// Student account session (Supabase Auth, email + password)
+// ---------------------------------------------------------------------------
+const ACC_KEY = 'ha_account_session_v9';
+
+function readAcc(): Sess | null {
+  try { const v = localStorage.getItem(ACC_KEY); return v ? JSON.parse(v) : null; } catch { return null; }
+}
+function writeAcc(r: any) {
+  const x: Sess = {
+    access_token: r.access_token,
+    refresh_token: r.refresh_token,
+    expires_at: r.expires_at || Math.floor(Date.now() / 1000) + (r.expires_in || 3600)
+  };
+  localStorage.setItem(ACC_KEY, JSON.stringify(x));
+  return x;
+}
+export const clearAccountSession = () => { try { localStorage.removeItem(ACC_KEY); } catch { /* ignore */ } };
+
+async function accToken(): Promise<string | null> {
+  let x = readAcc();
+  if (!x) return null;
+  if (x.expires_at - 60 < Date.now() / 1000) {
+    try {
+      const r = await http('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: x.refresh_token } });
+      x = writeAcc(r);
+    } catch {
+      clearAccountSession();
+      return null;
+    }
+  }
+  return x.access_token;
+}
+
+// student RPC: sends the account token when an email account is signed in, otherwise anonymous (code + device)
+const srpc = async (name: string, args: any) => rpc(name, args, await accToken());
+
+export interface AccountMe extends AccountInfo {
+  name: string; phone: string; grade: GradeType; code: string; student: any;
+}
+
+const ACC_ERRORS: Record<string, string> = {
+  BAD_EMAIL: 'اكتب بريداً إلكترونياً صحيحاً.',
+  WEAK_PASSWORD: 'كلمة المرور لازم تكون 6 أحرف أو أرقام على الأقل.',
+  BAD_NAME: 'اكتب اسم الطالب (ثلاثة أحرف على الأقل).',
+  BAD_GRADE: 'اختر المرحلة الدراسية.',
+  EMAIL_EXISTS: 'هذا الإيميل مسجّل من قبل، سجّل الدخول بدلاً من إنشاء حساب.',
+  NO_ACCOUNT: 'هذا الحساب ليس حساب طالب.'
+};
+
+function toMe(r: any): AccountMe {
+  return {
+    id: r.id, email: r.email, name: r.name, phone: r.phone || '', grade: r.grade as GradeType,
+    code: r.code, accessUntil: r.accessUntil || null, hasAccess: !!r.hasAccess, student: r.student || {}
+  };
+}
+
+export async function accountMe(): Promise<AccountMe | null> {
+  const t = await accToken();
+  if (!t) return null;
+  try {
+    const r = await rpc('ha_acc_me', {}, t);
+    return r?.ok ? toMe(r) : null;
+  } catch { return null; }
+}
+
+export async function accountLogin(email: string, password: string):
+  Promise<{ ok: true; me: AccountMe } | { ok: false; error: string }> {
+  try {
+    const r = await http('/auth/v1/token?grant_type=password', { method: 'POST', body: { email: email.trim().toLowerCase(), password } });
+    writeAcc(r);
+    const me = await rpc('ha_acc_me', {}, r.access_token);
+    if (!me?.ok) {
+      clearAccountSession();
+      return { ok: false, error: ACC_ERRORS[me?.error] || 'تعذر تسجيل الدخول.' };
+    }
+    return { ok: true, me: toMe(me) };
+  } catch (e: any) {
+    clearAccountSession();
+    const m = String(e?.message || '');
+    if (/invalid login|invalid_grant|credentials/i.test(m)) return { ok: false, error: 'الإيميل أو كلمة المرور غير صحيحة.' };
+    return { ok: false, error: 'تعذر الاتصال بالخادم. تأكد من الإنترنت وحاول مرة أخرى.' };
+  }
+}
+
+export async function accountSignup(email: string, password: string, name: string, phone: string, grade: GradeType):
+  Promise<{ ok: true; me: AccountMe } | { ok: false; error: string }> {
+  try {
+    const r = await rpc('ha_signup', { p_email: email, p_password: password, p_name: name, p_phone: phone, p_grade: grade });
+    if (!r?.ok) return { ok: false, error: ACC_ERRORS[r?.error] || 'تعذر إنشاء الحساب.' };
+  } catch {
+    return { ok: false, error: 'تعذر الاتصال بالخادم. تأكد من الإنترنت وحاول مرة أخرى.' };
+  }
+  return accountLogin(email, password);
+}
+
+export function buildAccountStudent(me: AccountMe): StudentUser {
+  return {
+    completedLessonIds: [], quizScores: [],
+    dailyWatchRate: 0, weeklyWatchRate: 0, monthlyWatchRate: 0,
+    dailyWatchMinutes: 0, weeklyWatchHours: 0, monthlyWatchHours: 0, streakDays: 0,
+    ...(me.student || {}),
+    id: me.code,
+    accountId: me.id,
+    email: me.email,
+    name: me.name,
+    phone: me.phone,
+    grade: me.grade,
+    codeUsed: me.code,
+    registeredAt: (me.student && me.student.registeredAt) || new Date().toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }),
+    lastLoginAt: 'الآن',
+    device: navigator.userAgent.includes('Mobile') ? 'هاتف محمول' : 'كمبيوتر شخصي',
+    status: 'online'
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Mapping helpers
 // ---------------------------------------------------------------------------
 const fmtDate = (iso?: string | null) =>
@@ -184,7 +301,7 @@ interface StudentSession { code: string; name: string; phone: string; grade: Gra
 export const getStudentSession = (): StudentSession | null => {
   try { const v = localStorage.getItem(STUDENT_KEY); return v ? JSON.parse(v) : null; } catch { return null; }
 };
-export const clearStudentSession = () => localStorage.removeItem(STUDENT_KEY);
+export const clearStudentSession = () => { localStorage.removeItem(STUDENT_KEY); clearAccountSession(); };
 
 const ERRORS: Record<string, string> = {
   INVALID_CODE: 'الكود غير صحيح أو تم إيقافه من المدرس. تأكد من الحروف والأرقام.',
@@ -212,24 +329,33 @@ function buildStudent(r: any, code: string, grade: GradeType, name: string, phon
   };
 }
 
-export interface Feed { lessons: Lesson[]; notifications: PlatformNotification[] }
+export interface Feed {
+  lessons: Lesson[]; notifications: PlatformNotification[]; exams: Exam[]; examResults: ExamResult[];
+}
+export const emptyFeed = (): Feed => ({ lessons: [], notifications: [], exams: [], examResults: [] });
 
 export async function studentFeed(code: string): Promise<Feed | null> {
-  const r = await rpc('ha_feed', { p_code: code, p_device: getDeviceId() });
+  const r = await srpc('ha_feed', { p_code: code, p_device: getDeviceId() });
   if (!r?.ok) return null;
-  return { lessons: r.lessons || [], notifications: (r.notifications || []).map(mapNotif) };
+  return {
+    lessons: r.lessons || [],
+    notifications: (r.notifications || []).map(mapNotif),
+    exams: r.exams || [],
+    examResults: r.examResults || []
+  };
 }
 
 export async function studentLogin(code: string, name: string, phone: string, gradeChoice: GradeType):
   Promise<{ ok: true; student: StudentUser; feed: Feed } | { ok: false; error: string }> {
   try {
     const clean = code.trim().toUpperCase();
+    clearAccountSession();
     const r = await rpc('ha_redeem', { p_code: clean, p_name: name, p_phone: phone, p_device: getDeviceId() });
     if (!r?.ok) return { ok: false, error: ERRORS[r?.error] || 'تعذر تسجيل الدخول. حاول مرة أخرى.' };
     const grade = (r.grade === 'جميع الصفوف' ? gradeChoice : r.grade) as GradeType;
     const student = buildStudent(r, clean, grade, name, phone);
     localStorage.setItem(STUDENT_KEY, JSON.stringify({ code: clean, name: student.name, phone: student.phone, grade }));
-    const feed = (await studentFeed(clean)) || { lessons: [], notifications: [] };
+    const feed = (await studentFeed(clean)) || emptyFeed();
     return { ok: true, student, feed };
   } catch {
     return { ok: false, error: 'تعذر الاتصال بالخادم. تأكد من الإنترنت وحاول مرة أخرى.' };
@@ -243,7 +369,7 @@ export async function studentRestore(): Promise<{ student: StudentUser; feed: Fe
     const r = await rpc('ha_redeem', { p_code: s.code, p_name: s.name, p_phone: s.phone, p_device: getDeviceId() });
     if (!r?.ok) { clearStudentSession(); return null; }
     const student = buildStudent(r, s.code, s.grade, s.name, s.phone);
-    const feed = (await studentFeed(s.code)) || { lessons: [], notifications: [] };
+    const feed = (await studentFeed(s.code)) || emptyFeed();
     return { student, feed };
   } catch {
     return null;
@@ -252,26 +378,53 @@ export async function studentRestore(): Promise<{ student: StudentUser; feed: Fe
 
 export async function saveStudentProgress(student: StudentUser) {
   try {
-    await rpc('ha_save_student', { p_code: student.codeUsed, p_device: getDeviceId(), p_data: student });
+    await srpc('ha_save_student', { p_code: student.codeUsed, p_device: getDeviceId(), p_data: student });
   } catch (e) { console.error('save progress failed', e); }
+}
+
+// ---------------------------------------------------------------------------
+// Exams (graded on the server)
+// ---------------------------------------------------------------------------
+const EXAM_ERRORS: Record<string, string> = {
+  ALREADY_TAKEN: 'سبق وأديت هذا الامتحان. لو محتاج محاولة جديدة تواصل مع المدرس.',
+  NOT_FOUND: 'هذا الامتحان غير متاح لك.',
+  UNAUTHORIZED: 'انتهت صلاحية الدخول أو الاشتراك. سجّل دخولك من جديد.',
+  EMPTY_EXAM: 'هذا الامتحان لا يحتوي على أسئلة.'
+};
+
+export async function examSubmit(code: string, examId: string, answers: (number | null)[]):
+  Promise<{ ok: true; result: ExamResult } | { ok: false; error: string }> {
+  try {
+    const r = await srpc('ha_exam_submit', { p_code: code, p_device: getDeviceId(), p_exam_id: examId, p_answers: answers });
+    if (!r?.ok) return { ok: false, error: EXAM_ERRORS[r?.error] || 'تعذر تسليم الامتحان.' };
+    return {
+      ok: true,
+      result: {
+        examId, score: r.score, total: r.total, answers: r.answers || answers,
+        review: (r.review || []) as ExamReviewItem[], createdAt: new Date().toISOString()
+      }
+    };
+  } catch {
+    return { ok: false, error: 'تعذر الاتصال بالخادم. إجاباتك لم تُسلَّم، حاول مرة أخرى.' };
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Forum
 // ---------------------------------------------------------------------------
 export async function forumFeedStudent(code: string): Promise<ForumPost[]> {
-  const r = await rpc('ha_forum_feed', { p_code: code, p_device: getDeviceId() });
+  const r = await srpc('ha_forum_feed', { p_code: code, p_device: getDeviceId() });
   return r?.ok ? r.posts || [] : [];
 }
 
 export async function forumAddPostStudent(code: string, post: ForumPost) {
-  await rpc('ha_forum_add_post', { p_code: code, p_device: getDeviceId(), p_post: post });
+  await srpc('ha_forum_add_post', { p_code: code, p_device: getDeviceId(), p_post: post });
 }
 export async function forumAddAnswerStudent(code: string, postId: string, answer: ForumAnswer) {
-  await rpc('ha_forum_add_answer', { p_code: code, p_device: getDeviceId(), p_post_id: postId, p_answer: answer });
+  await srpc('ha_forum_add_answer', { p_code: code, p_device: getDeviceId(), p_post_id: postId, p_answer: answer });
 }
 export async function forumUpvoteStudent(code: string, postId: string) {
-  await rpc('ha_forum_upvote', { p_code: code, p_device: getDeviceId(), p_post_id: postId });
+  await srpc('ha_forum_upvote', { p_code: code, p_device: getDeviceId(), p_post_id: postId });
 }
 
 export async function forumSaveTeacher(post: ForumPost) {
@@ -287,24 +440,81 @@ export async function forumSaveTeacher(post: ForumPost) {
 export interface TeacherData {
   lessons: Lesson[]; codes: StudentCode[]; students: StudentUser[];
   forum: ForumPost[]; notifications: PlatformNotification[];
+  accounts: Account[]; exams: Exam[]; examResults: ExamResultRow[];
+}
+
+const ACC_NOTE = '__acct__';
+
+function mapAccount(a: any): Account {
+  return {
+    id: Number(a.id), email: a.email, name: a.name, phone: a.phone || '', grade: a.grade as GradeType,
+    code: a.code || null, accessUntil: a.access_until || null, active: !!a.active, createdAt: a.created_at
+  };
+}
+function mapExam(e: any): Exam {
+  return {
+    id: e.id, title: e.title, grade: e.grade as GradeType, durationMin: e.duration_min,
+    questions: e.questions || [], createdAt: e.created_at
+  };
 }
 
 export async function teacherLoadAll(): Promise<TeacherData> {
-  const [lessons, codes, students, notifs, forum] = await Promise.all([
+  const [lessons, codes, students, notifs, forum, accounts, exams, results] = await Promise.all([
     tq('/rest/v1/ha_lessons?select=data,created_at&order=created_at.desc'),
     tq('/rest/v1/ha_codes?select=*&order=created_at.desc'),
     tq('/rest/v1/ha_students?select=*'),
     tq('/rest/v1/ha_notifications?select=*&order=created_at.desc&limit=50'),
-    tq('/rest/v1/ha_forum?select=data&order=created_at.desc')
+    tq('/rest/v1/ha_forum?select=data&order=created_at.desc'),
+    tq('/rest/v1/ha_accounts?select=*&order=id.desc'),
+    tq('/rest/v1/ha_exams?select=*&order=created_at.desc'),
+    tq('/rest/v1/ha_exam_results?select=*&order=created_at.desc')
   ]);
   const codeMap = new Map<string, any>(codes.map((c: any) => [c.code, c]));
   return {
     lessons: lessons.map((l: any) => l.data),
-    codes: codes.map(mapCode),
+    codes: codes.filter((c: any) => c.note !== ACC_NOTE).map(mapCode),
     students: students.map((s: any) => mapStudentRow(s, codeMap.get(s.code))),
     forum: forum.map((f: any) => f.data),
-    notifications: notifs.map(mapNotif)
+    notifications: notifs.map(mapNotif),
+    accounts: accounts.map(mapAccount),
+    exams: exams.map(mapExam),
+    examResults: results.map((r: any) => ({
+      id: r.id, examId: r.exam_id, code: r.code, score: r.score, total: r.total, createdAt: r.created_at
+    }))
   };
+}
+
+export async function teacherGrantAccess(id: number, days: number, extend: boolean) {
+  const r = await rpc('ha_teacher_grant', { p_id: id, p_days: days, p_extend: extend }, await teacherToken());
+  if (!r?.ok) throw new Error(r?.error === 'NOT_FOUND' ? 'لا يوجد حساب بهذا الـ ID.' : 'تعذر تحديث الاشتراك.');
+  return r.accessUntil as string;
+}
+
+export async function teacherDeleteAccount(id: number) {
+  const r = await rpc('ha_teacher_delete_account', { p_id: id }, await teacherToken());
+  if (!r?.ok) throw new Error('تعذر حذف الحساب.');
+}
+
+export async function teacherSaveExam(exam: Exam) {
+  await tq('/rest/v1/ha_exams', {
+    method: 'POST',
+    body: {
+      id: exam.id, grade: exam.grade, title: exam.title, duration_min: exam.durationMin,
+      questions: exam.questions, published: true
+    },
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }
+  });
+  await tq('/rest/v1/ha_notifications', {
+    method: 'POST',
+    body: { grade: exam.grade, title: 'امتحان جديد متاح الآن 📝', body: `أضاف المهندس حسين علام امتحان "${exam.title}" (${exam.grade})` },
+    headers: { Prefer: 'return=minimal' }
+  });
+}
+export async function teacherDeleteExam(id: string) {
+  await tq(`/rest/v1/ha_exams?id=eq.${enc(id)}`, { method: 'DELETE' });
+}
+export async function teacherDeleteExamResult(id: string) {
+  await tq(`/rest/v1/ha_exam_results?id=eq.${enc(id)}`, { method: 'DELETE' });
 }
 
 export async function teacherSaveLesson(lesson: Lesson) {
