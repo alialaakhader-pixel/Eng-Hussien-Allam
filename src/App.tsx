@@ -8,6 +8,8 @@ import { TeacherGate } from './components/TeacherGate';
 import { TeacherDashboard } from './components/TeacherDashboard';
 import { StudentLoginModal } from './components/StudentLoginModal';
 import { GlassPhysicsBackground } from './components/GlassPhysicsBackground';
+import { ExamsView } from './components/ExamsView';
+import { ActivationNotice } from './components/ActivationNotice';
 
 import {
   Lesson,
@@ -16,7 +18,12 @@ import {
   ForumPost,
   ForumAnswer,
   PlatformNotification,
-  GradeType
+  GradeType,
+  Exam,
+  ExamResult,
+  ExamResultRow,
+  Account,
+  AccountInfo
 } from './types';
 
 import * as api from './services/api';
@@ -35,6 +42,11 @@ export default function App() {
   const [students, setStudents] = useState<StudentUser[]>([]);
   const [forumPosts, setForumPosts] = useState<ForumPost[]>([]);
   const [notifications, setNotifications] = useState<PlatformNotification[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [examResults, setExamResults] = useState<ExamResult[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [examRows, setExamRows] = useState<ExamResultRow[]>([]);
+  const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
 
   // Auth State
   const [currentStudent, setCurrentStudent] = useState<StudentUser | null>(null);
@@ -71,6 +83,9 @@ export default function App() {
     setStudents(d.students);
     setForumPosts(d.forum);
     setNotifications(d.notifications);
+    setAccounts(d.accounts);
+    setExams(d.exams);
+    setExamRows(d.examResults);
     pickLesson(d.lessons);
   }, []);
 
@@ -79,10 +94,29 @@ export default function App() {
     if (feed) {
       setLessons(feed.lessons);
       setNotifications(feed.notifications);
+      setExams(feed.exams);
+      setExamResults(feed.examResults);
       pickLesson(feed.lessons, grade);
+    } else {
+      setLessons([]); setExams([]); setExamResults([]);
     }
     setForumPosts(forum);
   }, []);
+
+  const clearStudentData = () => {
+    setLessons([]); setNotifications([]); setForumPosts([]); setExams([]); setExamResults([]);
+    setSelectedLessonId('');
+  };
+
+  // Refresh an email account: access state first, then data if the teacher opened the platform for it
+  const refreshAccount = useCallback(async () => {
+    const me = await api.accountMe();
+    if (!me) return null;
+    setAccountInfo({ id: me.id, email: me.email, accessUntil: me.accessUntil, hasAccess: me.hasAccess });
+    if (me.hasAccess) await loadStudent(me.code, me.grade);
+    else { setLessons([]); setExams([]); setExamResults([]); setForumPosts([]); }
+    return me;
+  }, [loadStudent]);
 
   // Initialize on mount: restore teacher or student session
   useEffect(() => {
@@ -93,13 +127,22 @@ export default function App() {
           setIsTeacherAuth(true);
           await loadTeacher();
         } else {
-          const restored = await api.studentRestore();
-          if (restored && alive) {
-            setCurrentStudent(restored.student);
-            setLessons(restored.feed.lessons);
-            setNotifications(restored.feed.notifications);
-            pickLesson(restored.feed.lessons, restored.student.grade);
-            setForumPosts(await api.forumFeedStudent(restored.student.codeUsed));
+          const me = await api.accountMe();
+          if (me && alive) {
+            setCurrentStudent(api.buildAccountStudent(me));
+            setAccountInfo({ id: me.id, email: me.email, accessUntil: me.accessUntil, hasAccess: me.hasAccess });
+            if (me.hasAccess) await loadStudent(me.code, me.grade);
+          } else {
+            const restored = await api.studentRestore();
+            if (restored && alive) {
+              setCurrentStudent(restored.student);
+              setLessons(restored.feed.lessons);
+              setNotifications(restored.feed.notifications);
+              setExams(restored.feed.exams);
+              setExamResults(restored.feed.examResults);
+              pickLesson(restored.feed.lessons, restored.student.grade);
+              setForumPosts(await api.forumFeedStudent(restored.student.codeUsed));
+            }
           }
         }
       } catch (e) {
@@ -109,19 +152,22 @@ export default function App() {
       }
     })();
     return () => { alive = false; };
-  }, [loadTeacher]);
+  }, [loadTeacher, loadStudent]);
 
   // Poll for fresh data (new lessons, forum, student log)
   useEffect(() => {
     const tick = () => {
       if (document.hidden) return;
       if (teacherRef.current) loadTeacher().catch(() => {});
-      else if (studentRef.current) loadStudent(studentRef.current.codeUsed, studentRef.current.grade).catch(() => {});
+      else if (studentRef.current) {
+        if (studentRef.current.accountId) refreshAccount().catch(() => {});
+        else loadStudent(studentRef.current.codeUsed, studentRef.current.grade).catch(() => {});
+      }
     };
     const id = setInterval(tick, POLL_MS);
     window.addEventListener('focus', tick);
     return () => { clearInterval(id); window.removeEventListener('focus', tick); };
-  }, [loadTeacher, loadStudent]);
+  }, [loadTeacher, loadStudent, refreshAccount]);
 
   // Update HTML dark class
   useEffect(() => {
@@ -188,11 +234,14 @@ export default function App() {
   // --------------------------------------------------------------------------
   const handleStudentAttempt = async (name: string, phone: string, grade: GradeType, code: string) => {
     const r = await api.studentLogin(code, name, phone, grade);
-    if (!r.ok) return { ok: false as const, error: r.error };
+    if (!r.ok) return { ok: false as const, error: (r as any).error as string };
 
     setCurrentStudent(r.student);
+    setAccountInfo(null);
     setLessons(r.feed.lessons);
     setNotifications(r.feed.notifications);
+    setExams(r.feed.exams);
+    setExamResults(r.feed.examResults);
     pickLesson(r.feed.lessons, r.student.grade);
     api.forumFeedStudent(r.student.codeUsed).then(setForumPosts).catch(() => {});
     const gradeMatching = r.feed.lessons.find(l => l.grade === r.student.grade);
@@ -204,13 +253,71 @@ export default function App() {
     return { ok: true as const };
   };
 
+  const enterAccount = async (me: api.AccountMe) => {
+    setCurrentStudent(api.buildAccountStudent(me));
+    setAccountInfo({ id: me.id, email: me.email, accessUntil: me.accessUntil, hasAccess: me.hasAccess });
+    if (me.hasAccess) {
+      await loadStudent(me.code, me.grade);
+      setActiveTab('lessons');
+      setLiveToast(`مرحباً يا بطل ${me.name}! تم فتح محاضراتك 🚀`);
+    } else {
+      clearStudentData();
+      setActiveTab('dashboard');
+      setLiveToast(`أهلاً ${me.name}! ابعت الـ ID بتاعك (${me.id}) للمهندس حسين علام لتفعيل حسابك.`);
+    }
+  };
+
+  const handleAccountLogin = async (email: string, password: string) => {
+    const r = await api.accountLogin(email, password);
+    if (!r.ok) return { ok: false as const, error: (r as any).error as string };
+    await enterAccount(r.me);
+    return { ok: true as const };
+  };
+
+  const handleAccountSignup = async (email: string, password: string, name: string, phone: string, grade: GradeType) => {
+    const r = await api.accountSignup(email, password, name, phone, grade);
+    if (!r.ok) return { ok: false as const, error: (r as any).error as string };
+    await enterAccount(r.me);
+    return { ok: true as const };
+  };
+
+  const handleExamSubmit = async (examId: string, answers: (number | null)[]) => {
+    if (!currentStudent) return { ok: false, error: 'سجّل دخولك أولاً.' };
+    const r = await api.examSubmit(currentStudent.codeUsed, examId, answers);
+    if (!r.ok) {
+      if (currentStudent.accountId) refreshAccount().catch(() => {});
+      return { ok: false, error: (r as any).error as string };
+    }
+    setExamResults(prev => [r.result, ...prev.filter(x => x.examId !== examId)]);
+    setLiveToast(`تم تصحيح الامتحان تلقائياً: ${r.result.score} / ${r.result.total} ✅`);
+    return { ok: true, result: r.result };
+  };
+
+  // teacher: accounts & exams
+  const handleGrantAccess = async (id: number, days: number, extend: boolean) => {
+    await api.teacherGrantAccess(id, days, extend);
+    await loadTeacher();
+  };
+  const handleDeleteAccount = async (id: number) => {
+    await api.teacherDeleteAccount(id);
+    await loadTeacher();
+  };
+  const handleSaveExam = async (exam: Exam) => {
+    await api.teacherSaveExam(exam);
+    await loadTeacher();
+  };
+  const handleDeleteExam = async (id: string) => {
+    try { await api.teacherDeleteExam(id); await loadTeacher(); } catch (e) { fail(e); }
+  };
+  const handleDeleteExamResult = async (id: string) => {
+    try { await api.teacherDeleteExamResult(id); await loadTeacher(); } catch (e) { fail(e); }
+  };
+
   const handleLogoutStudent = () => {
     api.clearStudentSession();
     setCurrentStudent(null);
-    setLessons([]);
-    setNotifications([]);
-    setForumPosts([]);
-    setSelectedLessonId('');
+    setAccountInfo(null);
+    clearStudentData();
     setActiveTab('home');
     setLiveToast('تم تسجيل الخروج بنجاح.');
   };
@@ -228,6 +335,7 @@ export default function App() {
     api.teacherLogout();
     setIsTeacherAuth(false);
     setLessons([]); setCodes([]); setStudents([]); setForumPosts([]); setNotifications([]);
+    setAccounts([]); setExams([]); setExamRows([]);
     setSelectedLessonId('');
     setActiveTab('home');
     setLiveToast('تم تسجيل خروج المدرس.');
@@ -311,6 +419,9 @@ export default function App() {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
+  const blocked = !!currentStudent && !!accountInfo && !accountInfo.hasAccess && !isTeacherAuth;
+  const gatedTabs = ['lessons', 'forum', 'exams', 'dashboard'];
+
   const activeLesson = lessons.find(l => l.id === selectedLessonId) || (lessons.length > 0 ? lessons[0] : null);
 
   return (
@@ -366,7 +477,26 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'lessons' && (
+        {blocked && accountInfo && currentStudent && gatedTabs.includes(activeTab) && (
+          <ActivationNotice
+            info={accountInfo}
+            name={currentStudent.name}
+            onRefresh={async () => { await refreshAccount(); }}
+            onLogout={handleLogoutStudent}
+          />
+        )}
+
+        {activeTab === 'exams' && !blocked && (
+          <ExamsView
+            exams={exams}
+            results={examResults}
+            currentStudent={currentStudent}
+            onOpenLoginModal={() => setShowStudentLoginModal(true)}
+            onSubmit={handleExamSubmit}
+          />
+        )}
+
+        {activeTab === 'lessons' && !blocked && (
           <VideoPlayerView
             lesson={activeLesson}
             allLessons={lessons}
@@ -379,7 +509,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'forum' && (
+        {activeTab === 'forum' && !blocked && (
           <ForumView
             posts={forumPosts}
             onAddPost={handleAddForumPost}
@@ -391,7 +521,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'dashboard' && (
+        {activeTab === 'dashboard' && !blocked && (
           <StudentDashboardView
             currentStudent={currentStudent}
             lessons={lessons}
@@ -432,6 +562,14 @@ export default function App() {
                 setSelectedLessonId(id);
                 setActiveTab('lessons');
               }}
+              accounts={accounts}
+              exams={exams}
+              examResults={examRows}
+              onGrantAccess={handleGrantAccess}
+              onDeleteAccount={handleDeleteAccount}
+              onSaveExam={handleSaveExam}
+              onDeleteExam={handleDeleteExam}
+              onDeleteExamResult={handleDeleteExamResult}
             />
           ) : (
             <TeacherGate
@@ -447,6 +585,8 @@ export default function App() {
         isOpen={showStudentLoginModal}
         onClose={() => setShowStudentLoginModal(false)}
         onAttemptLogin={handleStudentAttempt}
+        onAccountLogin={handleAccountLogin}
+        onAccountSignup={handleAccountSignup}
       />
 
       {/* Footer */}

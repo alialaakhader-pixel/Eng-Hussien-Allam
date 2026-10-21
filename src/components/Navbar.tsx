@@ -15,7 +15,8 @@ import {
   UserCheck, 
   Sparkles,
   ChevronDown,
-  Download
+  Download,
+  ClipboardList
 } from 'lucide-react';
 import { StudentUser, PlatformNotification } from '../types';
 
@@ -125,6 +126,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="text-[10px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded-full font-bold">
                 نقاشات
               </span>
+            </button>
+
+            <button
+              onClick={() => handleNavClick('exams')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold transition-all duration-200 ${
+                activeTab === 'exams'
+                  ? 'bg-amber-500 text-slate-950 shadow-md font-black shadow-amber-500/20'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <ClipboardList className="w-4 h-4" />
+              <span>الامتحانات</span>
             </button>
 
             <button
@@ -243,7 +256,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {currentStudent.name}
                   </div>
                   <div className="text-[10px] text-emerald-400 font-mono">
-                    {currentStudent.grade} · {currentStudent.codeUsed}
+                    {currentStudent.grade} · {currentStudent.accountId ? `ID ${currentStudent.accountId}` : currentStudent.codeUsed}
                   </div>
                 </div>
                 <button
@@ -260,7 +273,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs sm:text-sm shadow-md shadow-amber-500/20 transition-all hover:scale-105 active:scale-95"
               >
                 <KeyRound className="w-4 h-4" />
-                <span>دخول الطالب بكود</span>
+                <span>دخول / حساب جديد</span>
               </button>
             )}
 
@@ -307,6 +320,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <MessageSquare className="w-4 h-4" />
             <span>المنتدى الطلابي</span>
+          </button>
+
+          <button
+            onClick={() => handleNavClick('exams')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-right ${
+              activeTab === 'exams' ? 'bg-amber-500 text-slate-950' : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <ClipboardList className="w-4 h-4" />
+            <span>الامتحانات</span>
           </button>
 
           <button

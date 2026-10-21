@@ -26,7 +26,9 @@ import {
   Download
 } from 'lucide-react';
 import { resolveVideoSource } from '../utils/video';
-import { Lesson, StudentCode, StudentUser, ForumPost, GradeType, LessonAttachmentItem } from '../types';
+import { Lesson, StudentCode, StudentUser, ForumPost, GradeType, LessonAttachmentItem, Account, Exam, ExamResultRow } from '../types';
+import { TeacherAccountsPanel } from './TeacherAccountsPanel';
+import { TeacherExamsPanel } from './TeacherExamsPanel';
 import { generateRandomCode } from '../services/store';
 import { uploadFile } from '../services/api';
 import { exportToCsv } from '../utils/helpers';
@@ -44,6 +46,14 @@ interface TeacherDashboardProps {
   onTeacherReply: (postId: string, replyContent: string) => void;
   onLogout: () => void;
   onSelectLessonForPreview: (lessonId: string) => void;
+  accounts: Account[];
+  exams: Exam[];
+  examResults: ExamResultRow[];
+  onGrantAccess: (id: number, days: number, extend: boolean) => Promise<void>;
+  onDeleteAccount: (id: number) => Promise<void>;
+  onSaveExam: (exam: Exam) => Promise<void>;
+  onDeleteExam: (id: string) => Promise<void>;
+  onDeleteExamResult: (id: string) => Promise<void>;
 }
 
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
@@ -58,9 +68,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   forumPosts,
   onTeacherReply,
   onLogout,
-  onSelectLessonForPreview
+  onSelectLessonForPreview,
+  accounts,
+  exams,
+  examResults,
+  onGrantAccess,
+  onDeleteAccount,
+  onSaveExam,
+  onDeleteExam,
+  onDeleteExamResult
 }) => {
-  const [activeTab, setActiveTab] = useState<'upload' | 'codes' | 'students' | 'forum' | 'lessons'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'codes' | 'students' | 'forum' | 'lessons' | 'accounts' | 'exams'>('upload');
   
   // ---- 1. Upload Lesson State (Fully custom inputs as requested) ----
   const [title, setTitle] = useState('');
@@ -419,6 +437,32 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         >
           <Upload className="w-4 h-4" />
           <span>رفع درس وفيديو فوري 🚀</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('accounts')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all ${
+            activeTab === 'accounts'
+              ? 'bg-amber-500 text-slate-950 shadow-md font-black shadow-amber-500/20'
+              : 'bg-slate-800/70 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>حسابات الطلبة وفتح المنصة 🆔</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-950/40">{accounts.length}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('exams')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all ${
+            activeTab === 'exams'
+              ? 'bg-amber-500 text-slate-950 shadow-md font-black shadow-amber-500/20'
+              : 'bg-slate-800/70 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60'
+          }`}
+        >
+          <Award className="w-4 h-4" />
+          <span>الامتحانات 📝</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-950/40">{exams.length}</span>
         </button>
 
         <button
@@ -887,6 +931,21 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {/* --------------------------------------------------------------------- */}
       {/* TAB 2: STUDENT CODE GENERATOR                                         */}
       {/* --------------------------------------------------------------------- */}
+      {activeTab === 'accounts' && (
+        <TeacherAccountsPanel accounts={accounts} onGrant={onGrantAccess} onDelete={onDeleteAccount} />
+      )}
+
+      {activeTab === 'exams' && (
+        <TeacherExamsPanel
+          exams={exams}
+          results={examResults}
+          students={students}
+          onSave={onSaveExam}
+          onDelete={onDeleteExam}
+          onDeleteResult={onDeleteExamResult}
+        />
+      )}
+
       {activeTab === 'codes' && (
         <div className="space-y-8">
           

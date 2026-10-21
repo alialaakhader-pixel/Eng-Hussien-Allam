@@ -70,6 +70,8 @@ export interface StudentUser {
   codeUsed: string;
   registeredAt: string;
   lastLoginAt: string;
+  accountId?: number;
+  email?: string;
   device?: string;
   status: 'online' | 'offline';
   completedLessonIds: string[];
@@ -121,4 +123,63 @@ export interface PlatformNotification {
   time: string;
   type: 'lesson' | 'code' | 'forum' | 'system';
   read: boolean;
+}
+
+export interface ExamQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctIndex?: number;
+  explanation?: string;
+}
+
+export interface Exam {
+  id: string;
+  title: string;
+  grade: GradeType;
+  durationMin: number;
+  questions: ExamQuestion[];
+  createdAt?: string;
+}
+
+export interface ExamReviewItem {
+  correctIndex: number;
+  explanation: string;
+}
+
+export interface ExamResult {
+  examId: string;
+  score: number;
+  total: number;
+  createdAt: string;
+  answers: (number | null)[];
+  review: ExamReviewItem[];
+}
+
+export interface ExamResultRow {
+  id: string;
+  examId: string;
+  code: string;
+  score: number;
+  total: number;
+  createdAt: string;
+}
+
+export interface Account {
+  id: number;
+  email: string;
+  name: string;
+  phone: string;
+  grade: GradeType;
+  code: string | null;
+  accessUntil: string | null;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface AccountInfo {
+  id: number;
+  email: string;
+  accessUntil: string | null;
+  hasAccess: boolean;
 }
