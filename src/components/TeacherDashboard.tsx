@@ -30,7 +30,7 @@ import { Lesson, StudentCode, StudentUser, ForumPost, GradeType, LessonAttachmen
 import { TeacherAccountsPanel } from './TeacherAccountsPanel';
 import { TeacherExamsPanel } from './TeacherExamsPanel';
 import { generateRandomCode } from '../services/store';
-import { uploadFile } from '../services/api';
+import { uploadFile, FILES_ENABLED, MAX_UPLOAD_MB } from '../services/api';
 import { exportToCsv } from '../utils/helpers';
 
 interface TeacherDashboardProps {
@@ -134,7 +134,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setVideoUrl('');
     setUploadMsg('جاري رفع الفيديو للسحابة... لا تغلق الصفحة');
     try {
-      const url = await uploadFile(file, 'videos');
+      const url = await uploadFile(file, 'videos', pct => setUploadMsg(`جاري رفع الفيديو للسحابة... ${pct}% — لا تغلق الصفحة`));
       setVideoUrl(url);
       setUploadMsg('تم رفع الفيديو بنجاح ✅ وجاهز للنشر للطلبة.');
     } catch (err: any) {
@@ -697,7 +697,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     </label>
 
                     <p className="mt-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-[11px] leading-relaxed">
-                      {uploadMsg || 'الفيديو بيترفع على السحابة ويظهر لكل الطلبة. الحد الأقصى 50 ميجابايت للملف؛ للفيديوهات الأكبر استخدم رابط يوتيوب (غير مدرج) أو Google Drive.'}
+                      {uploadMsg || (FILES_ENABLED ? 'الفيديو بيترفع على سحابة Cloudflare ويظهر لكل الطلبة، ومفيش حد عملي لحجم الملف.' : `الفيديو بيترفع على السحابة ويظهر لكل الطلبة. الحد الأقصى ${MAX_UPLOAD_MB} ميجابايت للملف؛ للفيديوهات الأكبر استخدم رابط يوتيوب (غير مدرج) أو Google Drive.`)}
                     </p>
 
                     {videoFileName && (

@@ -1,0 +1,7 @@
+name = "platform-files"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "hussien-allam-files"

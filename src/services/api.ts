@@ -8,7 +8,11 @@ const env = (import.meta as any).env || {};
 const SUPABASE_URL: string = env.VITE_SUPABASE_URL || 'https://vmwfwyyrqbtwthakwqft.supabase.co';
 const ANON_KEY: string = env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable__2XQ2mNTv9UbIX8on0OpvA_zYn_ygtw';
 const BUCKET = 'lessons';
-export const MAX_UPLOAD_MB = 50;
+// Cloudflare R2 file service (see /cloudflare). When set, videos and attachments go to R2
+// in 16 MB chunks (no practical size limit); otherwise they fall back to Supabase Storage (50 MB).
+const FILES_URL: string = String(env.VITE_FILES_URL || '').replace(/\/$/, '');
+export const MAX_UPLOAD_MB = FILES_URL ? 5120 : 50;
+export const FILES_ENABLED = !!FILES_URL;
 
 // ---------------------------------------------------------------------------
 // Low level HTTP
@@ -553,11 +557,57 @@ export async function teacherDeleteCode(code: string) {
   await tq(`/rest/v1/ha_codes?code=eq.${enc(code)}`, { method: 'DELETE' });
 }
 
-export async function uploadFile(file: File, folder: 'videos' | 'attachments'): Promise<string> {
+const CHUNK = 16 * 1024 * 1024;
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+async function uploadToR2(file: File, folder: 'videos' | 'attachments', ext: string, onProgress?: (pct: number) => void) {
+  const auth = async () => {
+    const t = await teacherToken();
+    if (!t) throw new Error('انتهت جلسة المدرس، سجّل الدخول من جديد.');
+    return { Authorization: `Bearer ${t}` };
+  };
+  const type = file.type || 'application/octet-stream';
+  const c = await fetch(`${FILES_URL}/upload/create?folder=${folder}&ext=${enc(ext)}&type=${enc(type)}`, { method: 'POST', headers: await auth() });
+  if (!c.ok) throw new Error(c.status === 403 ? 'غير مصرح لك بالرفع.' : 'تعذر بدء الرفع على السحابة.');
+  const { key, uploadId } = await c.json();
+  const q = `key=${enc(key)}&uploadId=${enc(uploadId)}`;
+
+  const parts: { partNumber: number; etag: string }[] = [];
+  const total = Math.max(1, Math.ceil(file.size / CHUNK));
+  for (let n = 1; n <= total; n++) {
+    const blob = file.slice((n - 1) * CHUNK, Math.min(n * CHUNK, file.size));
+    let done = false;
+    for (let attempt = 0; attempt < 3 && !done; attempt++) {
+      try {
+        const r = await fetch(`${FILES_URL}/upload/part?${q}&n=${n}`, { method: 'PUT', headers: await auth(), body: blob });
+        if (!r.ok) throw new Error('part ' + r.status);
+        parts.push(await r.json());
+        done = true;
+      } catch {
+        await sleep(1000 * (attempt + 1));
+      }
+    }
+    if (!done) {
+      fetch(`${FILES_URL}/upload/abort?${q}`, { method: 'POST', headers: await auth() }).catch(() => {});
+      throw new Error('انقطع الاتصال أثناء الرفع. تأكد من الإنترنت وحاول مرة أخرى.');
+    }
+    onProgress?.(Math.round((n / total) * 100));
+  }
+  const done = await fetch(`${FILES_URL}/upload/complete?${q}`, {
+    method: 'POST', headers: { ...(await auth()), 'Content-Type': 'application/json' }, body: JSON.stringify({ parts })
+  });
+  if (!done.ok) throw new Error('تعذر إنهاء الرفع.');
+  return (await done.json()).url as string;
+}
+
+export async function uploadFile(file: File, folder: 'videos' | 'attachments', onProgress?: (pct: number) => void): Promise<string> {
   if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
-    throw new Error(`حجم الملف أكبر من ${MAX_UPLOAD_MB} ميجابايت. ارفع الفيديو على يوتيوب (غير مدرج) وضع الرابط بدلاً من الملف.`);
+    throw new Error(FILES_URL
+      ? `حجم الملف أكبر من ${MAX_UPLOAD_MB} ميجابايت.`
+      : `حجم الملف أكبر من ${MAX_UPLOAD_MB} ميجابايت. ارفع الفيديو على يوتيوب (غير مدرج) وضع الرابط بدلاً من الملف.`);
   }
   const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
+  if (FILES_URL) return uploadToR2(file, folder, ext, onProgress);
   const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   await tq(`/storage/v1/object/${BUCKET}/${path}`, {
     method: 'POST', body: file,
