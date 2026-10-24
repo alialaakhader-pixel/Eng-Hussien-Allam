@@ -6,6 +6,10 @@
   }
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 html, body {
   font-family: var(--font-cairo);
   letter-spacing: normal !important;
@@ -69,4 +73,10 @@ span, p, h1, h2, h3, h4, a, button, input, textarea, select {
 
 .animate-spin-slow {
   animation: spin-slow 20s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin-slow {
+    animation: none;
+  }
 }

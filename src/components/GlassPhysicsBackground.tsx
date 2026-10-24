@@ -2,19 +2,19 @@ import React from 'react';
 
 export const GlassPhysicsBackground: React.FC = () => {
   return (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 select-none">
+    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 select-none transform-gpu">
       
       {/* 1. Glass Rutherford-Bohr Atom (Top Right) */}
-      <div className="absolute -top-12 -right-12 w-80 h-80 sm:w-96 sm:h-96 opacity-35 dark:opacity-40 animate-spin-slow">
+      <div className="absolute -top-12 -right-12 w-80 h-80 sm:w-96 sm:h-96 opacity-35 dark:opacity-40 animate-spin-slow will-change-transform">
         <div className="relative w-full h-full">
           {/* Orbit 1 */}
-          <div className="absolute inset-0 rounded-[50%] border-2 border-amber-400/40 rotate-[35deg] shadow-[0_0_25px_rgba(245,158,11,0.2)] backdrop-blur-xs" />
+          <div className="absolute inset-0 rounded-[50%] border-2 border-amber-400/40 rotate-[35deg] shadow-[0_0_25px_rgba(245,158,11,0.2)]" />
           {/* Orbit 2 */}
-          <div className="absolute inset-4 rounded-[50%] border-2 border-sky-400/40 rotate-[-45deg] shadow-[0_0_25px_rgba(56,189,248,0.2)] backdrop-blur-xs" />
+          <div className="absolute inset-4 rounded-[50%] border-2 border-sky-400/40 rotate-[-45deg] shadow-[0_0_25px_rgba(56,189,248,0.2)]" />
           {/* Orbit 3 */}
-          <div className="absolute inset-8 rounded-[50%] border-2 border-emerald-400/30 rotate-[85deg] backdrop-blur-xs" />
+          <div className="absolute inset-8 rounded-[50%] border-2 border-emerald-400/30 rotate-[85deg]" />
           {/* Glass Nucleus */}
-          <div className="absolute inset-0 m-auto w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500/50 to-orange-500/40 border border-white/30 backdrop-blur-md shadow-[0_0_35px_rgba(245,158,11,0.5)] flex items-center justify-center">
+          <div className="absolute inset-0 m-auto w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500/50 to-orange-500/40 border border-white/30 shadow-[0_0_35px_rgba(245,158,11,0.5)] flex items-center justify-center">
             <span className="text-white/80 font-mono font-bold text-xs">⚛</span>
           </div>
           {/* Floating electron bead */}
@@ -23,22 +23,22 @@ export const GlassPhysicsBackground: React.FC = () => {
       </div>
 
       {/* 2. Glass Prism with Refraction Spectrum (Mid Left) */}
-      <div className="absolute top-1/3 -left-14 w-64 h-64 opacity-30 dark:opacity-35 animate-pulse-subtle">
+      <div className="absolute top-1/3 -left-14 w-64 h-64 opacity-30 dark:opacity-35">
         <div className="relative w-full h-full flex items-center justify-center">
           {/* Glass Triangular Prism */}
-          <div className="w-48 h-48 rounded-3xl bg-gradient-to-br from-white/10 via-sky-500/10 to-purple-500/15 border border-white/20 backdrop-blur-md shadow-2xl rotate-45 flex items-center justify-center">
-            <div className="w-28 h-28 rounded-2xl border border-white/20 bg-white/5 backdrop-blur-lg flex items-center justify-center -rotate-45">
+          <div className="w-48 h-48 rounded-3xl bg-gradient-to-br from-white/10 via-sky-500/10 to-purple-500/15 border border-white/20 shadow-2xl rotate-45 flex items-center justify-center">
+            <div className="w-28 h-28 rounded-2xl border border-white/20 bg-white/5 flex items-center justify-center -rotate-45">
               <span className="text-2xl font-serif text-white/50 font-black">λ</span>
             </div>
           </div>
           {/* Rainbow dispersion gradient sheen */}
-          <div className="absolute w-72 h-1.5 bg-gradient-to-r from-red-500/40 via-amber-400/40 to-blue-500/40 blur-xs rotate-[25deg] translate-x-12" />
+          <div className="absolute w-72 h-1.5 bg-gradient-to-r from-red-500/40 via-amber-400/40 to-blue-500/40 rotate-[25deg] translate-x-12" />
         </div>
       </div>
 
       {/* 3. Glass Ohm's Law Resistor & Circuit Symbol (Bottom Right) */}
       <div className="absolute bottom-24 -right-10 w-72 h-72 opacity-25 dark:opacity-30">
-        <div className="relative w-full h-full p-6 rounded-3xl bg-slate-900/30 border border-white/10 backdrop-blur-md shadow-xl flex flex-col justify-center items-center">
+        <div className="relative w-full h-full p-6 rounded-3xl bg-slate-900/30 border border-white/10 shadow-xl flex flex-col justify-center items-center">
           {/* Ohm Greek letter Ω in frosted glass */}
           <span className="text-7xl font-serif text-amber-400/50 font-black drop-shadow-md">
             Ω
@@ -59,9 +59,9 @@ export const GlassPhysicsBackground: React.FC = () => {
 
       {/* 4. Glass Magnetic Flux Loop & Lorentz Force (Mid Bottom Left) */}
       <div className="absolute -bottom-16 left-1/4 w-80 h-80 opacity-20 dark:opacity-30">
-        <div className="relative w-full h-full rounded-full border border-sky-400/25 bg-sky-500/5 backdrop-blur-md flex items-center justify-center shadow-[inset_0_0_40px_rgba(56,189,248,0.1)]">
+        <div className="relative w-full h-full rounded-full border border-sky-400/25 bg-sky-500/5 flex items-center justify-center shadow-[inset_0_0_40px_rgba(56,189,248,0.1)]">
           <div className="w-56 h-56 rounded-full border border-dashed border-sky-400/30 flex items-center justify-center">
-            <div className="w-32 h-32 rounded-full border border-white/20 bg-slate-900/40 backdrop-blur-md flex flex-col items-center justify-center text-center p-2">
+            <div className="w-32 h-32 rounded-full border border-white/20 bg-slate-900/40 flex flex-col items-center justify-center text-center p-2">
               <span className="font-mono text-xs font-bold text-sky-300/80">F = B·I·L</span>
               <span className="text-[10px] text-slate-400">Lorentz</span>
             </div>
