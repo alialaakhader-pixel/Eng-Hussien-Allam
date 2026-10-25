@@ -16,6 +16,7 @@ import {
   Video
 } from 'lucide-react';
 import { Lesson, StudentUser } from '../types';
+import { GradesShowcase } from './GradesShowcase';
 
 interface HomeHeroProps {
   onOpenLessons: () => void;
@@ -201,6 +202,9 @@ export const HomeHero: React.FC<HomeHeroProps> = ({
           </div>
         </div>
       </section>
+
+      {/* Grades showcase (glass frame) */}
+      <GradesShowcase onPick={currentStudent ? onOpenLessons : onOpenLoginModal} />
 
       {/* Featured Lectures Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
