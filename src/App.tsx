@@ -26,6 +26,7 @@ import {
   AccountInfo
 } from './types';
 
+import { PhoneCall } from 'lucide-react';
 import * as api from './services/api';
 
 const POLL_MS = 30000;
@@ -597,6 +598,14 @@ export default function App() {
               منصة المهندس حسين علام للفيزياء © 2026
             </span>
             <p>الثانوية العامة والأزهر والبكالوريا · شرح هندسي وفهم فيزيائي متكامل</p>
+            <a
+              href="tel:+201221179530"
+              className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 hover:bg-red-500/20 transition font-bold"
+            >
+              <PhoneCall className="w-4 h-4" />
+              <span>رقم الطوارئ:</span>
+              <span dir="ltr" className="font-mono tracking-wider">012 21179530</span>
+            </a>
           </div>
 
           <div className="flex flex-wrap items-center gap-4 text-xs font-medium">
