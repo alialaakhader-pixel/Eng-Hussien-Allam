@@ -26,6 +26,7 @@ import {
 import { Lesson, StudentUser, GradeType } from '../types';
 import { triggerDownload, triggerTextDownload } from '../utils/helpers';
 import { resolveVideoSource } from '../utils/video';
+import { SimulationBoard } from './SimulationBoard';
 
 interface VideoPlayerViewProps {
   lesson?: Lesson | null;
@@ -437,7 +438,7 @@ ${currentActiveLesson.description}
           </div>
 
           {/* Video Player Container */}
-          <div className="relative aspect-video w-full bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 group select-none">
+          <div className={`relative ${effectiveMode === 'simulation' ? 'min-h-[28rem]' : 'aspect-video'} w-full bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 group select-none`}>
             
             {/* 1. YOUTUBE EMBED ENGINE (Guaranteed 100% Playback in all browsers/iframes) */}
             {effectiveMode === 'youtube' && (
@@ -454,38 +455,9 @@ ${currentActiveLesson.description}
               </div>
             )}
 
-            {/* 2. SIMULATION BOARD ENGINE */}
+            {/* 2. SIMULATION BOARD ENGINE (driven by the lesson's laws) */}
             {effectiveMode === 'simulation' && (
-              <div className="w-full h-full bg-radial from-slate-900 to-slate-950 flex flex-col items-center justify-center p-6 text-center space-y-4 relative">
-                <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shadow-2xl animate-spin-slow">
-                  <Activity className="w-8 h-8" />
-                </div>
-                <div className="space-y-1 max-w-md">
-                  <h3 className="text-lg font-display font-black text-white">
-                    معمل المحاكاة والسبورة الفيزيائية التفاعلية
-                  </h3>
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    عرض توضيحي مرئي لخطوط الفيض المغناطيسي وتطبيقات قانون أوم للدائرة المغلقة.
-                  </p>
-                </div>
-                {/* Visualizer Waves */}
-                <div className="flex items-center gap-1.5 h-16 w-64 justify-center">
-                  {[40, 75, 55, 90, 65, 80, 45, 100, 70, 85, 50, 95].map((h, i) => (
-                    <div
-                      key={i}
-                      style={{ height: `${h}%` }}
-                      className="w-2.5 bg-gradient-to-t from-amber-500 to-amber-300 rounded-full animate-pulse"
-                    />
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setPlayerMode('auto')}
-                  className="px-5 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs transition hover:bg-amber-400"
-                >
-                  العودة للبث المباشر ↺
-                </button>
-              </div>
+              <SimulationBoard lesson={currentActiveLesson} onBack={() => setPlayerMode('auto')} />
             )}
 
             {/* 3. HTML5 MP4 / LOCAL FILE ENGINE */}

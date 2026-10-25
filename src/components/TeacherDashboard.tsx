@@ -26,7 +26,9 @@ import {
   Download
 } from 'lucide-react';
 import { resolveVideoSource } from '../utils/video';
-import { Lesson, StudentCode, StudentUser, ForumPost, GradeType, LessonAttachmentItem, Account, Exam, ExamResultRow } from '../types';
+import { Lesson, StudentCode, StudentUser, ForumPost, GradeType, LessonAttachmentItem, Account, Exam, ExamResultRow, LessonLaw } from '../types';
+import { LawsEditor } from './LawsEditor';
+import { isLawValid } from '../utils/laws';
 import { TeacherAccountsPanel } from './TeacherAccountsPanel';
 import { TeacherExamsPanel } from './TeacherExamsPanel';
 import { generateRandomCode } from '../services/store';
@@ -106,6 +108,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
   const [keyPointInput, setKeyPointInput] = useState('');
   const [keyPoints, setKeyPoints] = useState<string[]>([]);
+  const [laws, setLaws] = useState<LessonLaw[]>([]);
   const [isPublishing, setIsPublishing] = useState(false);
   const [uploadMsg, setUploadMsg] = useState('');
   const [publishSuccess, setPublishSuccess] = useState(false);
@@ -247,7 +250,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         attachments: attachments,
         publishedAt: new Date().toISOString().split('T')[0],
         viewsCount: 0,
-        keyPoints: keyPoints.length > 0 ? keyPoints : undefined
+        keyPoints: keyPoints.length > 0 ? keyPoints : undefined,
+      laws: laws.filter(isLawValid).length > 0 ? laws.filter(isLawValid) : undefined
       };
 
       onAddLesson(newLesson);
@@ -264,6 +268,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       setVideoUrl('');
       setAttachments([]);
       setKeyPoints([]);
+    setLaws([]);
 
       setTimeout(() => {
         setPublishSuccess(false);
@@ -863,6 +868,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   ))}
                 </div>
               </div>
+
+              <LawsEditor laws={laws} onChange={setLaws} />
 
               {/* Submit Button */}
               <button

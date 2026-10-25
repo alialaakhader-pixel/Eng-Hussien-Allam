@@ -35,6 +35,26 @@ export interface Lesson {
   viewsCount: number;
   keyPoints?: string[];
   quiz?: QuizQuestion[];
+  laws?: LessonLaw[];
+}
+
+export interface LawVariable {
+  symbol: string;
+  name: string;
+  unit: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+}
+
+export interface LessonLaw {
+  id: string;
+  title: string;
+  formula: string;
+  resultName: string;
+  resultUnit: string;
+  variables: LawVariable[];
 }
 
 export interface StudentCode {
