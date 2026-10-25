@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Search, UserCheck, Trash2, Hourglass, CalendarPlus, Ban } from 'lucide-react';
+import { Search, UserCheck, Trash2, Hourglass, CalendarPlus, Ban, Smartphone } from 'lucide-react';
 import { Account } from '../types';
 
 interface Props {
   accounts: Account[];
   onGrant: (id: number, days: number, extend: boolean) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
+  onResetDevices: (id: number) => Promise<void>;
+  onSetMaxDevices: (id: number, max: number) => Promise<void>;
 }
 
 const gradeLabel = (g: string) => (g === '1ث' ? 'أولى ثانوي' : g === '2ث' ? 'ثانية ثانوي' : g === '3ث' ? 'ثالثة ثانوي' : g);
@@ -19,7 +21,7 @@ function status(a: Account): { text: string; cls: string } {
   return { text: `مفعّل · باقي ${days} يوم`, cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' };
 }
 
-export const TeacherAccountsPanel: React.FC<Props> = ({ accounts, onGrant, onDelete }) => {
+export const TeacherAccountsPanel: React.FC<Props> = ({ accounts, onGrant, onDelete, onResetDevices, onSetMaxDevices }) => {
   const [idInput, setIdInput] = useState('');
   const [days, setDays] = useState(30);
   const [extend, setExtend] = useState(true);
@@ -141,6 +143,7 @@ export const TeacherAccountsPanel: React.FC<Props> = ({ accounts, onGrant, onDel
                   <th className="py-2 px-2">الإيميل / الهاتف</th>
                   <th className="py-2 px-2">المرحلة</th>
                   <th className="py-2 px-2">الحالة</th>
+                  <th className="py-2 px-2">الأجهزة</th>
                   <th className="py-2 px-2">إجراءات</th>
                 </tr>
               </thead>
@@ -168,7 +171,27 @@ export const TeacherAccountsPanel: React.FC<Props> = ({ accounts, onGrant, onDel
                         )}
                       </td>
                       <td className="py-2.5 px-2">
+                        <span className={`inline-flex items-center gap-1 font-mono font-bold ${a.deviceCount >= a.maxDevices ? 'text-amber-400' : 'text-slate-300'}`}>
+                          <Smartphone className="w-3 h-3" /> {a.deviceCount} / {a.maxDevices}
+                        </span>
+                        <select
+                          value={a.maxDevices}
+                          disabled={busy}
+                          onChange={e => run(() => onSetMaxDevices(a.id, Number(e.target.value)), `تم تعديل حد الأجهزة للطالب ${a.id}.`)}
+                          className="block mt-1 bg-slate-800 border border-slate-700 rounded-lg px-1 py-0.5 text-[11px] text-slate-300"
+                          title="الحد الأقصى للأجهزة"
+                        >
+                          {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>حد {n}</option>)}
+                        </select>
+                      </td>
+                      <td className="py-2.5 px-2">
                         <div className="flex flex-wrap gap-1.5">
+                          <button disabled={busy} onClick={() => {
+                            if (window.confirm(`تصفير أجهزة ${a.name}؟ هيتسجل من جديد على أول أجهزة يدخل منها.`)) run(() => onResetDevices(a.id), `تم تصفير أجهزة الطالب ${a.id}.`);
+                          }}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 hover:bg-sky-500/25">
+                            <Smartphone className="w-3 h-3" /> تصفير الأجهزة
+                          </button>
                           <button disabled={busy} onClick={() => run(() => onGrant(a.id, 30, true), `✅ تمت إضافة 30 يوم للطالب ${a.id}.`)}
                             className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25">
                             <CalendarPlus className="w-3 h-3" /> +30 يوم

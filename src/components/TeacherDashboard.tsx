@@ -51,6 +51,8 @@ interface TeacherDashboardProps {
   examResults: ExamResultRow[];
   onGrantAccess: (id: number, days: number, extend: boolean) => Promise<void>;
   onDeleteAccount: (id: number) => Promise<void>;
+  onResetDevices: (id: number) => Promise<void>;
+  onSetMaxDevices: (id: number, max: number) => Promise<void>;
   onSaveExam: (exam: Exam) => Promise<void>;
   onDeleteExam: (id: string) => Promise<void>;
   onDeleteExamResult: (id: string) => Promise<void>;
@@ -74,6 +76,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   examResults,
   onGrantAccess,
   onDeleteAccount,
+  onResetDevices,
+  onSetMaxDevices,
   onSaveExam,
   onDeleteExam,
   onDeleteExamResult
@@ -932,7 +936,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {/* TAB 2: STUDENT CODE GENERATOR                                         */}
       {/* --------------------------------------------------------------------- */}
       {activeTab === 'accounts' && (
-        <TeacherAccountsPanel accounts={accounts} onGrant={onGrantAccess} onDelete={onDeleteAccount} />
+        <TeacherAccountsPanel accounts={accounts} onGrant={onGrantAccess} onDelete={onDeleteAccount} onResetDevices={onResetDevices} onSetMaxDevices={onSetMaxDevices} />
       )}
 
       {activeTab === 'exams' && (
