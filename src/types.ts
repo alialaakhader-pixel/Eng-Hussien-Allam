@@ -175,6 +175,8 @@ export interface Account {
   accessUntil: string | null;
   active: boolean;
   createdAt: string;
+  maxDevices: number;
+  deviceCount: number;
 }
 
 export interface AccountInfo {

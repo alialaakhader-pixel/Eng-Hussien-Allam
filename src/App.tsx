@@ -298,6 +298,14 @@ export default function App() {
     await api.teacherGrantAccess(id, days, extend);
     await loadTeacher();
   };
+  const handleResetDevices = async (id: number) => {
+    await api.teacherResetDevices(id);
+    await loadTeacher();
+  };
+  const handleSetMaxDevices = async (id: number, max: number) => {
+    await api.teacherSetMaxDevices(id, max);
+    await loadTeacher();
+  };
   const handleDeleteAccount = async (id: number) => {
     await api.teacherDeleteAccount(id);
     await loadTeacher();
@@ -567,6 +575,8 @@ export default function App() {
               examResults={examRows}
               onGrantAccess={handleGrantAccess}
               onDeleteAccount={handleDeleteAccount}
+              onResetDevices={handleResetDevices}
+              onSetMaxDevices={handleSetMaxDevices}
               onSaveExam={handleSaveExam}
               onDeleteExam={handleDeleteExam}
               onDeleteExamResult={handleDeleteExamResult}

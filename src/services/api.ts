@@ -155,7 +155,9 @@ const ACC_ERRORS: Record<string, string> = {
   BAD_NAME: 'اكتب اسم الطالب (ثلاثة أحرف على الأقل).',
   BAD_GRADE: 'اختر المرحلة الدراسية.',
   EMAIL_EXISTS: 'هذا الإيميل مسجّل من قبل، سجّل الدخول بدلاً من إنشاء حساب.',
-  NO_ACCOUNT: 'هذا الحساب ليس حساب طالب.'
+  NO_ACCOUNT: 'هذا الحساب ليس حساب طالب.',
+  DEVICE_LIMIT: 'هذا الحساب مسجّل على الحد الأقصى من الأجهزة. لو غيّرت جهازك تواصل مع المدرس لتصفير الأجهزة.',
+  NO_DEVICE: 'تعذر التعرف على الجهاز. جرّب متصفحاً آخر.'
 };
 
 function toMe(r: any): AccountMe {
@@ -169,7 +171,8 @@ export async function accountMe(): Promise<AccountMe | null> {
   const t = await accToken();
   if (!t) return null;
   try {
-    const r = await rpc('ha_acc_me', {}, t);
+    const r = await rpc('ha_acc_me', { p_device: getDeviceId() }, t);
+    if (!r?.ok && r?.error === 'DEVICE_LIMIT') clearAccountSession();
     return r?.ok ? toMe(r) : null;
   } catch { return null; }
 }
@@ -179,7 +182,7 @@ export async function accountLogin(email: string, password: string):
   try {
     const r = await http('/auth/v1/token?grant_type=password', { method: 'POST', body: { email: email.trim().toLowerCase(), password } });
     writeAcc(r);
-    const me = await rpc('ha_acc_me', {}, r.access_token);
+    const me = await rpc('ha_acc_me', { p_device: getDeviceId() }, r.access_token);
     if (!me?.ok) {
       clearAccountSession();
       return { ok: false, error: ACC_ERRORS[me?.error] || 'تعذر تسجيل الدخول.' };
@@ -448,7 +451,8 @@ const ACC_NOTE = '__acct__';
 function mapAccount(a: any): Account {
   return {
     id: Number(a.id), email: a.email, name: a.name, phone: a.phone || '', grade: a.grade as GradeType,
-    code: a.code || null, accessUntil: a.access_until || null, active: !!a.active, createdAt: a.created_at
+    code: a.code || null, accessUntil: a.access_until || null, active: !!a.active, createdAt: a.created_at,
+    maxDevices: Number(a.max_devices ?? 2), deviceCount: 0
   };
 }
 function mapExam(e: any): Exam {
@@ -459,7 +463,7 @@ function mapExam(e: any): Exam {
 }
 
 export async function teacherLoadAll(): Promise<TeacherData> {
-  const [lessons, codes, students, notifs, forum, accounts, exams, results] = await Promise.all([
+  const [lessons, codes, students, notifs, forum, accounts, exams, results, devices] = await Promise.all([
     tq('/rest/v1/ha_lessons?select=data,created_at&order=created_at.desc'),
     tq('/rest/v1/ha_codes?select=*&order=created_at.desc'),
     tq('/rest/v1/ha_students?select=*'),
@@ -467,8 +471,11 @@ export async function teacherLoadAll(): Promise<TeacherData> {
     tq('/rest/v1/ha_forum?select=data&order=created_at.desc'),
     tq('/rest/v1/ha_accounts?select=*&order=id.desc'),
     tq('/rest/v1/ha_exams?select=*&order=created_at.desc'),
-    tq('/rest/v1/ha_exam_results?select=*&order=created_at.desc')
+    tq('/rest/v1/ha_exam_results?select=*&order=created_at.desc'),
+    tq('/rest/v1/ha_account_devices?select=account_id')
   ]);
+  const devCount = new Map<number, number>();
+  for (const d of devices as any[]) devCount.set(Number(d.account_id), (devCount.get(Number(d.account_id)) || 0) + 1);
   const codeMap = new Map<string, any>(codes.map((c: any) => [c.code, c]));
   return {
     lessons: lessons.map((l: any) => l.data),
@@ -476,7 +483,7 @@ export async function teacherLoadAll(): Promise<TeacherData> {
     students: students.map((s: any) => mapStudentRow(s, codeMap.get(s.code))),
     forum: forum.map((f: any) => f.data),
     notifications: notifs.map(mapNotif),
-    accounts: accounts.map(mapAccount),
+    accounts: accounts.map((a: any) => ({ ...mapAccount(a), deviceCount: devCount.get(Number(a.id)) || 0 })),
     exams: exams.map(mapExam),
     examResults: results.map((r: any) => ({
       id: r.id, examId: r.exam_id, code: r.code, score: r.score, total: r.total, createdAt: r.created_at
@@ -488,6 +495,16 @@ export async function teacherGrantAccess(id: number, days: number, extend: boole
   const r = await rpc('ha_teacher_grant', { p_id: id, p_days: days, p_extend: extend }, await teacherToken());
   if (!r?.ok) throw new Error(r?.error === 'NOT_FOUND' ? 'لا يوجد حساب بهذا الـ ID.' : 'تعذر تحديث الاشتراك.');
   return r.accessUntil as string;
+}
+
+export async function teacherResetDevices(id: number) {
+  const r = await rpc('ha_teacher_reset_devices', { p_id: id }, await teacherToken());
+  if (!r?.ok) throw new Error('تعذر تصفير الأجهزة.');
+}
+
+export async function teacherSetMaxDevices(id: number, max: number) {
+  const r = await rpc('ha_teacher_set_max_devices', { p_id: id, p_max: max }, await teacherToken());
+  if (!r?.ok) throw new Error('تعذر تعديل عدد الأجهزة.');
 }
 
 export async function teacherDeleteAccount(id: number) {
