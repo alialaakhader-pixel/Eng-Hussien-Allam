@@ -10,6 +10,7 @@ import { StudentLoginModal } from './components/StudentLoginModal';
 import { GlassPhysicsBackground } from './components/GlassPhysicsBackground';
 import { ExamsView } from './components/ExamsView';
 import { ActivationNotice } from './components/ActivationNotice';
+import { applyWatch, withAttendanceToday } from './utils/progress';
 
 import {
   Lesson,
@@ -423,6 +424,19 @@ export default function App() {
     });
   };
 
+  const handleWatchProgress = (lessonId: string, deltaSeconds: number, position: number, duration: number) => {
+    if (!currentStudent) return;
+    updateStudent(applyWatch(currentStudent, lessonId, deltaSeconds, position, duration));
+  };
+
+  // record today as an attendance day the first time a signed-in student opens the platform
+  useEffect(() => {
+    if (!currentStudent) return;
+    const withToday = withAttendanceToday(currentStudent);
+    if (withToday) updateStudent(withToday);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStudent?.codeUsed, currentStudent?.attendanceDates?.length]);
+
   const handleMarkNotificationRead = (id: string) => {
     api.markNotifRead(id);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
@@ -514,6 +528,7 @@ export default function App() {
             onOpenLoginModal={() => setShowStudentLoginModal(true)}
             onSaveQuizScore={handleSaveQuizScore}
             onMarkLessonCompleted={handleMarkLessonCompleted}
+            onWatchProgress={handleWatchProgress}
             onOpenTeacherUpload={() => setActiveTab('teacher')}
           />
         )}

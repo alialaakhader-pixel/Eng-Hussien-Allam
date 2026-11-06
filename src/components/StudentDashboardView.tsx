@@ -27,7 +27,8 @@ import {
   Tooltip,
   Cell
 } from 'recharts';
-import { Lesson, StudentUser } from '../types';
+import { Lesson, StudentUser, LectureProgress } from '../types';
+import { computeMetrics, lectureProgressPct, formatCairoDate, percent } from '../utils/progress';
 
 interface StudentDashboardViewProps {
   currentStudent: StudentUser | null;
@@ -52,14 +53,26 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
   const gradeLessons = lessons.filter(l => l.grade === studentGrade);
   const displayLessons = gradeLessons.length > 0 ? gradeLessons : lessons;
 
-  // Real metrics only (zero until the student actually watches / takes quizzes)
-  const dailyRate = currentStudent?.dailyWatchRate ?? 0;
-  const weeklyRate = currentStudent?.weeklyWatchRate ?? 0;
-  const monthlyRate = currentStudent?.monthlyWatchRate ?? 0;
-  const dailyMinutes = currentStudent?.dailyWatchMinutes ?? 0;
-  const weeklyHours = currentStudent?.weeklyWatchHours ?? 0;
-  const monthlyHours = currentStudent?.monthlyWatchHours ?? 0;
-  const streakDays = currentStudent?.streakDays ?? 0;
+  // Real metrics only: everything below is computed from the student's recorded watching
+  const m = computeMetrics(currentStudent);
+  const dailyMinutes = m.dailyMinutes;
+  const weeklyHours = m.weeklyHours;
+  const monthlyHours = m.monthlyHours;
+  const streakDays = m.streakDays;
+  const dailyRate = Math.min(100, Math.round((dailyMinutes / 50) * 100));
+  const weeklyRate = Math.min(100, Math.round((weeklyHours / 5.5) * 100));
+  const monthlyRate = Math.min(100, Math.round((monthlyHours / 22) * 100));
+
+  const doneCount = displayLessons.filter(l => currentStudent?.completedLessonIds.includes(l.id)).length;
+  const courseRate = percent(doneCount, displayLessons.length);
+  const progressById = new Map<string, LectureProgress>((currentStudent?.lectureProgress || []).map(p => [p.lessonId, p] as [string, LectureProgress]));
+  const lastActivity = (currentStudent?.lectureProgress || []).map(p => p.lastWatchedAt).sort().pop();
+  const resumeLesson = (() => {
+    const id = currentStudent?.lastWatchedLessonId;
+    const l = id ? displayLessons.find(x => x.id === id) : undefined;
+    if (l && !currentStudent?.completedLessonIds.includes(l.id)) return l;
+    return displayLessons.find(x => !currentStudent?.completedLessonIds.includes(x.id) && progressById.has(x.id));
+  })();
 
   const dailyChartData = [
     { day: 'اليوم', minutes: dailyMinutes, rate: dailyRate, target: 50, lectures: '-' }
@@ -138,6 +151,16 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
               منصة المهندس حسين علام للفيزياء — تابع مؤشرات مشاهدتك للمحاضرات والتزامك اليومي والأسبوعي والشهري بدقة.
             </p>
           </div>
+
+          {resumeLesson && (
+            <button
+              onClick={() => onSelectLesson(resumeLesson.id)}
+              className="px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm flex items-center gap-2 shadow-lg shadow-amber-500/20 transition"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              <span>أكمل من حيث توقفت: {resumeLesson.title.length > 28 ? resumeLesson.title.slice(0, 28) + '…' : resumeLesson.title}</span>
+            </button>
+          )}
 
           {/* Quick Streak & Total Watch Box */}
           <div className="flex items-center gap-4 bg-slate-800/90 p-4 rounded-2xl border border-slate-700/80">
@@ -260,36 +283,40 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Metric 4: Video Completion Rate */}
+        {/* Metric 4: Course completion (real) */}
         <div className="bg-slate-900 border border-slate-800 hover:border-purple-500/40 rounded-3xl p-5 shadow-xl transition-all duration-200">
           <div className="flex items-center justify-between text-xs mb-3">
             <span className="text-slate-400 font-bold flex items-center gap-1.5">
               <Target className="w-4 h-4 text-purple-400" />
-              معدل استيعاب الحصة
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 font-bold font-mono text-[11px]">
-              مثالي
+              إكمال المحاضرات
             </span>
           </div>
 
           <div className="flex items-baseline gap-2 mb-2">
             <span className="text-3xl font-display font-black text-purple-400 font-mono">
-              92%
+              {courseRate === null ? '—' : `${courseRate}%`}
             </span>
-            <span className="text-xs text-slate-400">إكمال بدون تسريع</span>
+            <span className="text-xs text-slate-400">
+              {courseRate === null ? 'لا توجد محاضرات بعد' : `${doneCount} من ${displayLessons.length} محاضرة`}
+            </span>
           </div>
 
-          {/* Progress bar */}
           <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700 mb-3">
-            <div 
-              style={{ width: '92%' }} 
+            <div
+              style={{ width: `${courseRate ?? 0}%` }}
               className="h-full bg-gradient-to-l from-purple-400 to-purple-600 rounded-full"
             />
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800">
-            <span>التقييم العام:</span>
-            <span className="font-bold text-amber-400">ممتاز · متفوق فيزياء ⭐</span>
+          <div className="space-y-1 text-[11px] text-slate-400 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-between">
+              <span>أيام الحضور الفعلية:</span>
+              <span className="font-bold text-white font-mono">{m.attendanceDays}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span>آخر نشاط:</span>
+              <span className="font-bold text-white">{formatCairoDate(lastActivity)}</span>
+            </div>
           </div>
         </div>
 
@@ -669,7 +696,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {displayLessons.map((l, idx) => {
             const isCompleted = currentStudent?.completedLessonIds.includes(l.id);
-            const progress = isCompleted ? 100 : 0;
+            const progress = isCompleted ? 100 : lectureProgressPct(progressById.get(l.id));
 
             return (
               <div

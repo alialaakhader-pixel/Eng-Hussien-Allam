@@ -27,6 +27,7 @@ import { Lesson, StudentUser, GradeType } from '../types';
 import { triggerDownload, triggerTextDownload } from '../utils/helpers';
 import { resolveVideoSource } from '../utils/video';
 import { SimulationBoard } from './SimulationBoard';
+import { useWatchTracker } from '../utils/useWatchTracker';
 
 interface VideoPlayerViewProps {
   lesson?: Lesson | null;
@@ -36,6 +37,7 @@ interface VideoPlayerViewProps {
   onOpenLoginModal: () => void;
   onSaveQuizScore?: (lessonId: string, score: number, total: number) => void;
   onMarkLessonCompleted?: (lessonId: string) => void;
+  onWatchProgress?: (lessonId: string, deltaSeconds: number, position: number, duration: number) => void;
   onOpenTeacherUpload?: () => void;
 }
 
@@ -47,9 +49,12 @@ export const VideoPlayerView: React.FC<VideoPlayerViewProps> = ({
   onOpenLoginModal,
   onSaveQuizScore,
   onMarkLessonCompleted,
+  onWatchProgress,
   onOpenTeacherUpload
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const resumedFor = useRef<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [videoQuality, setVideoQuality] = useState<'1080p' | '720p' | '480p'>('1080p');
@@ -116,6 +121,39 @@ export const VideoPlayerView: React.FC<VideoPlayerViewProps> = ({
   const currentActiveLesson = lesson && (selectedGradeFilter === 'all' || lesson.grade === selectedGradeFilter)
     ? lesson
     : (filteredLessons.length > 0 ? filteredLessons[0] : allLessons[0] || null);
+
+  // Real watch-time tracking (only time actually played; skips and rewinds are not counted)
+  const tracker = useWatchTracker(
+    currentActiveLesson?.id,
+    !!currentStudent && !!onWatchProgress,
+    (id, delta, position, dur) => onWatchProgress?.(id, delta, position, dur)
+  );
+  const savedPosition = currentStudent?.lectureProgress?.find(p => p.lessonId === currentActiveLesson?.id)?.lastPositionSeconds ?? 0;
+
+  // YouTube iframe: listen to the player's own time reports
+  useEffect(() => {
+    const frame = iframeRef.current;
+    if (!frame) return;
+    let playing = false, cur = 0, dur = 0;
+    const onMsg = (e: MessageEvent) => {
+      if (e.source !== frame.contentWindow || typeof e.data !== 'string') return;
+      let m: any;
+      try { m = JSON.parse(e.data); } catch { return; }
+      if (m?.event !== 'infoDelivery' || !m.info) return;
+      if (typeof m.info.playerState === 'number') {
+        const was = playing;
+        playing = m.info.playerState === 1;
+        if (was && !playing) { tracker.flush(); tracker.reset(); }
+      }
+      if (typeof m.info.duration === 'number') dur = m.info.duration;
+      if (typeof m.info.currentTime === 'number') { cur = m.info.currentTime; tracker.feed(cur, playing, dur); }
+    };
+    const hello = () => frame.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*');
+    window.addEventListener('message', onMsg);
+    frame.addEventListener('load', hello);
+    const t = setTimeout(hello, 1500);
+    return () => { window.removeEventListener('message', onMsg); frame.removeEventListener('load', hello); clearTimeout(t); };
+  });
 
   // If no lessons exist at all
   if (!currentActiveLesson || allLessons.length === 0) {
@@ -444,7 +482,8 @@ ${currentActiveLesson.description}
             {effectiveMode === 'youtube' && (
               <div className="w-full h-full relative">
                 <iframe
-                  src={isEmbed ? resolved.url : ''}
+                  ref={iframeRef}
+                  src={isEmbed ? (resolved.provider === 'youtube' ? `${resolved.url}&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}` : resolved.url) : ''}
                   referrerPolicy="strict-origin-when-cross-origin"
                   loading="lazy"
                   title={currentActiveLesson.title}
@@ -475,10 +514,23 @@ ${currentActiveLesson.description}
                   }}
                   className={`w-full h-full object-cover transition duration-300 ${!currentStudent ? 'filter blur-md brightness-50 pointer-events-none' : ''}`}
                   onTimeUpdate={() => {
-                    if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
+                    const v = videoRef.current;
+                    if (!v) return;
+                    setCurrentTime(v.currentTime);
+                    tracker.feed(v.currentTime, !v.paused && !v.seeking, v.duration);
                   }}
+                  onSeeking={() => tracker.reset()}
+                  onSeeked={() => tracker.reset()}
+                  onPause={() => { tracker.flush(); tracker.reset(); }}
                   onLoadedMetadata={() => {
-                    if (videoRef.current) setDuration(videoRef.current.duration);
+                    const v = videoRef.current;
+                    if (!v) return;
+                    setDuration(v.duration);
+                    // resume where the student stopped (once per lesson)
+                    if (currentActiveLesson && resumedFor.current !== currentActiveLesson.id) {
+                      resumedFor.current = currentActiveLesson.id;
+                      if (savedPosition > 5 && v.duration && savedPosition < v.duration - 10) v.currentTime = savedPosition;
+                    }
                   }}
                   onEnded={() => setIsPlaying(false)}
                   onClick={togglePlay}

@@ -82,6 +82,15 @@ export interface LessonWatchProgress {
   completed: boolean;
 }
 
+export interface LectureProgress {
+  lessonId: string;
+  watchedSeconds: number;
+  durationSeconds: number;
+  lastPositionSeconds: number;
+  lastWatchedAt: string;
+  completed: boolean;
+}
+
 export interface StudentUser {
   id: string;
   name: string;
@@ -96,6 +105,9 @@ export interface StudentUser {
   status: 'online' | 'offline';
   completedLessonIds: string[];
   watchHistory?: LessonWatchProgress[];
+  lectureProgress?: LectureProgress[];
+  activityDays?: Record<string, number>; // Cairo date (YYYY-MM-DD) -> seconds actually watched
+  attendanceDates?: string[]; // Cairo dates on which the student actually opened the platform
   dailyWatchRate?: number; // e.g. 85%
   weeklyWatchRate?: number; // e.g. 90%
   monthlyWatchRate?: number; // e.g. 88%
