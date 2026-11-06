@@ -36,6 +36,7 @@ interface VideoPlayerViewProps {
   onOpenLoginModal: () => void;
   onSaveQuizScore?: (lessonId: string, score: number, total: number) => void;
   onMarkLessonCompleted?: (lessonId: string) => void;
+  onWatchProgress?: (lessonId: string, deltaSeconds: number, positionSeconds: number, durationSeconds: number) => void;
   onOpenTeacherUpload?: () => void;
 }
 
@@ -47,6 +48,7 @@ export const VideoPlayerView: React.FC<VideoPlayerViewProps> = ({
   onOpenLoginModal,
   onSaveQuizScore,
   onMarkLessonCompleted,
+  onWatchProgress,
   onOpenTeacherUpload
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -94,6 +96,40 @@ export const VideoPlayerView: React.FC<VideoPlayerViewProps> = ({
     return () => clearInterval(interval);
   }, []);
 
+
+  // ---- Real watch tracking: only normal forward playback counts (seeks/jumps never do) ----
+  const lastTimeRef = useRef<number | null>(null);
+  const pendingRef = useRef(0);
+  const reportRef = useRef(onWatchProgress);
+  reportRef.current = onWatchProgress;
+  const lessonIdRef = useRef<string | undefined>(undefined);
+  lessonIdRef.current = lesson?.id;
+
+  const flushWatch = () => {
+    const v = videoRef.current;
+    const id = lessonIdRef.current;
+    if (!v || !id || pendingRef.current <= 0 || !Number.isFinite(v.duration)) return;
+    const delta = pendingRef.current;
+    pendingRef.current = 0;
+    reportRef.current?.(id, delta, v.currentTime, v.duration);
+  };
+
+  const trackTime = (v: HTMLVideoElement) => {
+    const cur = v.currentTime;
+    const prev = lastTimeRef.current;
+    lastTimeRef.current = cur;
+    if (prev === null || v.paused || v.seeking) return;
+    const delta = cur - prev;
+    if (delta > 0 && delta <= 3.5) pendingRef.current += delta;
+  };
+
+  useEffect(() => {
+    const t = window.setInterval(flushWatch, 15000);
+    return () => { window.clearInterval(t); flushWatch(); };
+  }, [lesson?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const resumeAt = useRef<number | null>(null);
+
   // Reset video state when lesson changes
   useEffect(() => {
     setIsPlaying(false);
@@ -101,6 +137,10 @@ export const VideoPlayerView: React.FC<VideoPlayerViewProps> = ({
     setQuizSubmitted(false);
     setSelectedAnswers({});
     setPlayerMode('auto');
+    lastTimeRef.current = null;
+    pendingRef.current = 0;
+    const prevEntry = currentStudent?.watchHistory?.find(h => h.lessonId === lesson?.id);
+    resumeAt.current = prevEntry && !prevEntry.completed && (prevEntry.lastPositionSeconds ?? 0) > 5 ? prevEntry.lastPositionSeconds! : null;
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
       videoRef.current.playbackRate = playbackSpeed;
@@ -475,12 +515,29 @@ ${currentActiveLesson.description}
                   }}
                   className={`w-full h-full object-cover transition duration-300 ${!currentStudent ? 'filter blur-md brightness-50 pointer-events-none' : ''}`}
                   onTimeUpdate={() => {
-                    if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
+                    if (videoRef.current) {
+                      setCurrentTime(videoRef.current.currentTime);
+                      trackTime(videoRef.current);
+                    }
                   }}
+                  onSeeking={() => { lastTimeRef.current = null; }}
+                  onSeeked={() => { lastTimeRef.current = videoRef.current ? videoRef.current.currentTime : null; }}
+                  onPlay={() => { lastTimeRef.current = videoRef.current ? videoRef.current.currentTime : null; }}
+                  onPause={flushWatch}
                   onLoadedMetadata={() => {
-                    if (videoRef.current) setDuration(videoRef.current.duration);
+                    const v = videoRef.current;
+                    if (!v) return;
+                    setDuration(v.duration);
+                    const at = resumeAt.current;
+                    if (at && Number.isFinite(v.duration) && at < v.duration - 5) {
+                      v.currentTime = at;
+                      setCurrentTime(at);
+                      setDownloadSuccessToast('كمّلنا من حيث توقفت ⏯');
+                      setTimeout(() => setDownloadSuccessToast(''), 3000);
+                    }
+                    resumeAt.current = null;
                   }}
-                  onEnded={() => setIsPlaying(false)}
+                  onEnded={() => { setIsPlaying(false); flushWatch(); }}
                   onClick={togglePlay}
                 />
 

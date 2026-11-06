@@ -80,6 +80,9 @@ export interface LessonWatchProgress {
   totalMinutes: number;
   lastWatchedAt: string;
   completed: boolean;
+  watchedSeconds?: number;      // real playback time (seeks are not counted)
+  durationSeconds?: number;
+  lastPositionSeconds?: number; // where to resume
 }
 
 export interface StudentUser {
@@ -104,6 +107,10 @@ export interface StudentUser {
   monthlyWatchHours?: number;
   streakDays?: number;
   lastWatchedLessonId?: string;
+  lastSeenAt?: string;                   // ISO time of this session's sign-in
+  prevSeenAt?: string;                   // ISO time of the previous sign-in
+  attendanceDates?: string[];            // unique Cairo days (YYYY-MM-DD) the student signed in
+  watchLog?: Record<string, number>;     // Cairo day -> real watched seconds
   quizScores: {
     lessonId: string;
     lessonTitle: string;

@@ -10,6 +10,7 @@ import { StudentLoginModal } from './components/StudentLoginModal';
 import { GlassPhysicsBackground } from './components/GlassPhysicsBackground';
 import { ExamsView } from './components/ExamsView';
 import { ActivationNotice } from './components/ActivationNotice';
+import { cairoDay, percent } from './utils/progress';
 
 import {
   Lesson,
@@ -414,6 +415,68 @@ export default function App() {
     setLiveToast(`أحسنت! تم حفظ نتيجتك (${score}/${total}) في سجل إنجازك.`);
   };
 
+  // Real watch tracking: the player reports seconds actually played (seeks excluded).
+  const liveStudent = useRef<StudentUser | null>(null);
+  liveStudent.current = currentStudent;
+  const saveTimer = useRef<number | null>(null);
+  const persistSoon = (s: StudentUser) => {
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => { api.saveStudentProgress(s); }, 1500);
+  };
+
+  const handleWatchProgress = (lessonId: string, deltaSeconds: number, positionSeconds: number, durationSeconds: number) => {
+    const s = liveStudent.current;
+    if (!s || !Number.isFinite(durationSeconds) || durationSeconds <= 0) return;
+    const lesson = lessons.find(l => l.id === lessonId);
+    const today = cairoDay();
+    const prev = s.watchHistory?.find(h => h.lessonId === lessonId);
+    const watched = Math.min(durationSeconds, (prev?.watchedSeconds ?? 0) + Math.max(0, deltaSeconds));
+    const pct = percent(watched, durationSeconds) ?? 0;
+    const completed = !!prev?.completed || pct >= 90;
+    const entry = {
+      lessonId,
+      lessonTitle: lesson?.title || prev?.lessonTitle || '',
+      progressPercent: completed ? 100 : pct,
+      watchedMinutes: Math.round(watched / 60),
+      totalMinutes: Math.round(durationSeconds / 60),
+      lastWatchedAt: new Date().toISOString(),
+      completed,
+      watchedSeconds: Math.round(watched),
+      durationSeconds: Math.round(durationSeconds),
+      lastPositionSeconds: Math.round(positionSeconds)
+    };
+    const log = { ...(s.watchLog || {}) };
+    log[today] = Math.round((log[today] || 0) + Math.max(0, deltaSeconds));
+    const updated: StudentUser = {
+      ...s,
+      watchHistory: [entry, ...(s.watchHistory || []).filter(h => h.lessonId !== lessonId)],
+      watchLog: log,
+      lastWatchedLessonId: lessonId,
+      completedLessonIds: completed && !s.completedLessonIds.includes(lessonId)
+        ? [...s.completedLessonIds, lessonId] : s.completedLessonIds
+    };
+    liveStudent.current = updated;
+    setCurrentStudent(updated);
+    persistSoon(updated);
+  };
+
+  // Count each real sign-in day once (Cairo time) and remember the previous sign-in.
+  const sessionMarked = useRef<string>('');
+  useEffect(() => {
+    const s = currentStudent;
+    if (!s || sessionMarked.current === s.codeUsed) return;
+    sessionMarked.current = s.codeUsed;
+    const today = cairoDay();
+    const days = new Set(s.attendanceDates || []);
+    days.add(today);
+    updateStudent({
+      ...s,
+      prevSeenAt: s.lastSeenAt,
+      lastSeenAt: new Date().toISOString(),
+      attendanceDates: Array.from(days).sort().slice(-400)
+    });
+  }, [currentStudent?.codeUsed]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleMarkLessonCompleted = (lessonId: string) => {
     if (!currentStudent) return;
     if (currentStudent.completedLessonIds.includes(lessonId)) return;
@@ -514,6 +577,7 @@ export default function App() {
             onOpenLoginModal={() => setShowStudentLoginModal(true)}
             onSaveQuizScore={handleSaveQuizScore}
             onMarkLessonCompleted={handleMarkLessonCompleted}
+            onWatchProgress={handleWatchProgress}
             onOpenTeacherUpload={() => setActiveTab('teacher')}
           />
         )}
