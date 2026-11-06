@@ -27,6 +27,7 @@ import { Lesson, StudentUser, GradeType } from '../types';
 import { triggerDownload, triggerTextDownload } from '../utils/helpers';
 import { resolveVideoSource } from '../utils/video';
 import { SimulationBoard } from './SimulationBoard';
+import { useWatchTracker } from '../utils/useWatchTracker';
 
 interface VideoPlayerViewProps {
   lesson?: Lesson | null;
@@ -36,7 +37,7 @@ interface VideoPlayerViewProps {
   onOpenLoginModal: () => void;
   onSaveQuizScore?: (lessonId: string, score: number, total: number) => void;
   onMarkLessonCompleted?: (lessonId: string) => void;
-  onWatchProgress?: (lessonId: string, deltaSeconds: number, positionSeconds: number, durationSeconds: number) => void;
+  onWatchProgress?: (lessonId: string, deltaSeconds: number, position: number, duration: number) => void;
   onOpenTeacherUpload?: () => void;
 }
 
@@ -52,6 +53,8 @@ export const VideoPlayerView: React.FC<VideoPlayerViewProps> = ({
   onOpenTeacherUpload
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const resumedFor = useRef<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [videoQuality, setVideoQuality] = useState<'1080p' | '720p' | '480p'>('1080p');
@@ -96,40 +99,6 @@ export const VideoPlayerView: React.FC<VideoPlayerViewProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-
-  // ---- Real watch tracking: only normal forward playback counts (seeks/jumps never do) ----
-  const lastTimeRef = useRef<number | null>(null);
-  const pendingRef = useRef(0);
-  const reportRef = useRef(onWatchProgress);
-  reportRef.current = onWatchProgress;
-  const lessonIdRef = useRef<string | undefined>(undefined);
-  lessonIdRef.current = lesson?.id;
-
-  const flushWatch = () => {
-    const v = videoRef.current;
-    const id = lessonIdRef.current;
-    if (!v || !id || pendingRef.current <= 0 || !Number.isFinite(v.duration)) return;
-    const delta = pendingRef.current;
-    pendingRef.current = 0;
-    reportRef.current?.(id, delta, v.currentTime, v.duration);
-  };
-
-  const trackTime = (v: HTMLVideoElement) => {
-    const cur = v.currentTime;
-    const prev = lastTimeRef.current;
-    lastTimeRef.current = cur;
-    if (prev === null || v.paused || v.seeking) return;
-    const delta = cur - prev;
-    if (delta > 0 && delta <= 3.5) pendingRef.current += delta;
-  };
-
-  useEffect(() => {
-    const t = window.setInterval(flushWatch, 15000);
-    return () => { window.clearInterval(t); flushWatch(); };
-  }, [lesson?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const resumeAt = useRef<number | null>(null);
-
   // Reset video state when lesson changes
   useEffect(() => {
     setIsPlaying(false);
@@ -137,10 +106,6 @@ export const VideoPlayerView: React.FC<VideoPlayerViewProps> = ({
     setQuizSubmitted(false);
     setSelectedAnswers({});
     setPlayerMode('auto');
-    lastTimeRef.current = null;
-    pendingRef.current = 0;
-    const prevEntry = currentStudent?.watchHistory?.find(h => h.lessonId === lesson?.id);
-    resumeAt.current = prevEntry && !prevEntry.completed && (prevEntry.lastPositionSeconds ?? 0) > 5 ? prevEntry.lastPositionSeconds! : null;
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
       videoRef.current.playbackRate = playbackSpeed;
@@ -156,6 +121,39 @@ export const VideoPlayerView: React.FC<VideoPlayerViewProps> = ({
   const currentActiveLesson = lesson && (selectedGradeFilter === 'all' || lesson.grade === selectedGradeFilter)
     ? lesson
     : (filteredLessons.length > 0 ? filteredLessons[0] : allLessons[0] || null);
+
+  // Real watch-time tracking (only time actually played; skips and rewinds are not counted)
+  const tracker = useWatchTracker(
+    currentActiveLesson?.id,
+    !!currentStudent && !!onWatchProgress,
+    (id, delta, position, dur) => onWatchProgress?.(id, delta, position, dur)
+  );
+  const savedPosition = (() => { const h = currentStudent?.watchHistory?.find(x => x.lessonId === currentActiveLesson?.id); return h && !h.completed ? (h.lastPositionSeconds ?? 0) : 0; })();
+
+  // YouTube iframe: listen to the player's own time reports
+  useEffect(() => {
+    const frame = iframeRef.current;
+    if (!frame) return;
+    let playing = false, cur = 0, dur = 0;
+    const onMsg = (e: MessageEvent) => {
+      if (e.source !== frame.contentWindow || typeof e.data !== 'string') return;
+      let m: any;
+      try { m = JSON.parse(e.data); } catch { return; }
+      if (m?.event !== 'infoDelivery' || !m.info) return;
+      if (typeof m.info.playerState === 'number') {
+        const was = playing;
+        playing = m.info.playerState === 1;
+        if (was && !playing) { tracker.flush(); tracker.reset(); }
+      }
+      if (typeof m.info.duration === 'number') dur = m.info.duration;
+      if (typeof m.info.currentTime === 'number') { cur = m.info.currentTime; tracker.feed(cur, playing, dur); }
+    };
+    const hello = () => frame.contentWindow?.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*');
+    window.addEventListener('message', onMsg);
+    frame.addEventListener('load', hello);
+    const t = setTimeout(hello, 1500);
+    return () => { window.removeEventListener('message', onMsg); frame.removeEventListener('load', hello); clearTimeout(t); };
+  });
 
   // If no lessons exist at all
   if (!currentActiveLesson || allLessons.length === 0) {
@@ -484,7 +482,8 @@ ${currentActiveLesson.description}
             {effectiveMode === 'youtube' && (
               <div className="w-full h-full relative">
                 <iframe
-                  src={isEmbed ? resolved.url : ''}
+                  ref={iframeRef}
+                  src={isEmbed ? (resolved.provider === 'youtube' ? `${resolved.url}&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}` : resolved.url) : ''}
                   referrerPolicy="strict-origin-when-cross-origin"
                   loading="lazy"
                   title={currentActiveLesson.title}
@@ -515,29 +514,25 @@ ${currentActiveLesson.description}
                   }}
                   className={`w-full h-full object-cover transition duration-300 ${!currentStudent ? 'filter blur-md brightness-50 pointer-events-none' : ''}`}
                   onTimeUpdate={() => {
-                    if (videoRef.current) {
-                      setCurrentTime(videoRef.current.currentTime);
-                      trackTime(videoRef.current);
-                    }
+                    const v = videoRef.current;
+                    if (!v) return;
+                    setCurrentTime(v.currentTime);
+                    tracker.feed(v.currentTime, !v.paused && !v.seeking, v.duration);
                   }}
-                  onSeeking={() => { lastTimeRef.current = null; }}
-                  onSeeked={() => { lastTimeRef.current = videoRef.current ? videoRef.current.currentTime : null; }}
-                  onPlay={() => { lastTimeRef.current = videoRef.current ? videoRef.current.currentTime : null; }}
-                  onPause={flushWatch}
+                  onSeeking={() => tracker.reset()}
+                  onSeeked={() => tracker.reset()}
+                  onPause={() => { tracker.flush(); tracker.reset(); }}
                   onLoadedMetadata={() => {
                     const v = videoRef.current;
                     if (!v) return;
                     setDuration(v.duration);
-                    const at = resumeAt.current;
-                    if (at && Number.isFinite(v.duration) && at < v.duration - 5) {
-                      v.currentTime = at;
-                      setCurrentTime(at);
-                      setDownloadSuccessToast('كمّلنا من حيث توقفت ⏯');
-                      setTimeout(() => setDownloadSuccessToast(''), 3000);
+                    // resume where the student stopped (once per lesson)
+                    if (currentActiveLesson && resumedFor.current !== currentActiveLesson.id) {
+                      resumedFor.current = currentActiveLesson.id;
+                      if (savedPosition > 5 && v.duration && savedPosition < v.duration - 10) v.currentTime = savedPosition;
                     }
-                    resumeAt.current = null;
                   }}
-                  onEnded={() => { setIsPlaying(false); flushWatch(); }}
+                  onEnded={() => setIsPlaying(false)}
                   onClick={togglePlay}
                 />
 
