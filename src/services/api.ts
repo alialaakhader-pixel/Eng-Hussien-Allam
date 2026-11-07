@@ -674,6 +674,10 @@ export async function askTutor(code: string, grade: string, question: string, hi
     const data = await res.json().catch(() => null);
     if (res.ok && data?.ok) return { ok: true, answer: data.answer };
     const msg = (data?.code && TUTOR_ERRORS[data.code]) || data?.error || 'تعذر الحصول على إجابة.';
+    if (res.status === 503) {
+      // service not configured on the server: retrying will not help
+      return { ok: false, error: 'المدرس الذكي غير متاح حالياً. هيتفعّل قريباً، وتقدر تسأل المدرس في المنتدى لحد ما يشتغل.', retryable: false };
+    }
     return { ok: false, error: msg, retryable: res.status >= 500 || res.status === 429 };
   } catch {
     return { ok: false, error: 'تعذر الاتصال بالخادم. تأكد من الإنترنت وحاول مرة أخرى.', retryable: true };
