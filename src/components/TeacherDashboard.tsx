@@ -31,6 +31,8 @@ import { LawsEditor } from './LawsEditor';
 import { isLawValid } from '../utils/laws';
 import { TeacherAccountsPanel } from './TeacherAccountsPanel';
 import { TeacherExamsPanel } from './TeacherExamsPanel';
+import { TeacherAssignmentsPanel } from './TeacherAssignmentsPanel';
+import { TeacherInsightsPanel } from './TeacherInsightsPanel';
 import { generateRandomCode } from '../services/store';
 import { uploadFile } from '../services/api';
 import { exportToCsv } from '../utils/helpers';
@@ -84,7 +86,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   onDeleteExam,
   onDeleteExamResult
 }) => {
-  const [activeTab, setActiveTab] = useState<'upload' | 'codes' | 'students' | 'forum' | 'lessons' | 'accounts' | 'exams'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'codes' | 'students' | 'forum' | 'lessons' | 'accounts' | 'exams' | 'assignments' | 'insights'>('upload');
   
   // ---- 1. Upload Lesson State (Fully custom inputs as requested) ----
   const [title, setTitle] = useState('');
@@ -472,6 +474,28 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           <Award className="w-4 h-4" />
           <span>الامتحانات 📝</span>
           <span className="text-xs px-2 py-0.5 rounded-full bg-slate-950/40">{exams.length}</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('assignments')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all ${
+            activeTab === 'assignments'
+              ? 'bg-amber-500 text-slate-950 shadow-md font-black shadow-amber-500/20'
+              : 'bg-slate-800/70 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60'
+          }`}
+        >
+          <Award className="w-4 h-4" />
+          <span>الواجبات 📚</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('insights')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all ${
+            activeTab === 'insights'
+              ? 'bg-amber-500 text-slate-950 shadow-md font-black shadow-amber-500/20'
+              : 'bg-slate-800/70 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60'
+          }`}
+        >
+          <Award className="w-4 h-4" />
+          <span>التحليلات والتنبيهات 📊</span>
         </button>
 
         <button
@@ -945,6 +969,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {activeTab === 'accounts' && (
         <TeacherAccountsPanel accounts={accounts} onGrant={onGrantAccess} onDelete={onDeleteAccount} onResetDevices={onResetDevices} onSetMaxDevices={onSetMaxDevices} />
       )}
+
+      {activeTab === 'assignments' && <TeacherAssignmentsPanel />}
+
+      {activeTab === 'insights' && <TeacherInsightsPanel examResults={examResults} />}
 
       {activeTab === 'exams' && (
         <TeacherExamsPanel

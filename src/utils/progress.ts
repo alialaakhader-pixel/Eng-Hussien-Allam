@@ -1,4 +1,4 @@
-import { Lesson, LessonWatchProgress, StudentUser } from '../types';
+import { Lesson, LessonWatchProgress, ServerProgress, StudentUser } from '../types';
 
 // All numbers shown to the student are computed from real records only.
 
@@ -77,3 +77,45 @@ export const fmtMinutes = (sec: number) => {
   const m = Math.round(sec / 60);
   return m >= 60 ? `${Math.floor(m / 60)} س ${m % 60} د` : `${m} دقيقة`;
 };
+
+// ---- Server-authoritative progress (ha_my_progress / ha_watch_heartbeat) ----
+const toEntry = (l: { lessonId: string; watchedSeconds: number; durationSeconds: number; lastPosition: number; completed: boolean; updatedAt?: string }, title: string): LessonWatchProgress => ({
+  lessonId: l.lessonId,
+  lessonTitle: title,
+  progressPercent: l.completed ? 100 : percent(l.watchedSeconds, l.durationSeconds) ?? 0,
+  watchedMinutes: Math.round(l.watchedSeconds / 60),
+  totalMinutes: Math.round(l.durationSeconds / 60),
+  lastWatchedAt: l.updatedAt || new Date().toISOString(),
+  completed: l.completed,
+  watchedSeconds: l.watchedSeconds,
+  durationSeconds: l.durationSeconds,
+  lastPositionSeconds: l.lastPosition
+});
+
+export function applyServerProgress(s: StudentUser, sp: ServerProgress, lessons: Lesson[]): StudentUser {
+  const title = (id: string) => lessons.find(l => l.id === id)?.title || '';
+  const done = sp.lectures.filter(l => l.completed).map(l => l.lessonId);
+  return {
+    ...s,
+    watchHistory: sp.lectures.map(l => toEntry(l, title(l.lessonId))),
+    watchLog: Object.fromEntries(sp.daily.map(d => [d.day, d.seconds])),
+    attendanceDates: sp.attendance,
+    completedLessonIds: Array.from(new Set([...s.completedLessonIds, ...done])),
+    lastWatchedLessonId: sp.lectures[0]?.lessonId ?? s.lastWatchedLessonId
+  };
+}
+
+export function mergeHeartbeat(
+  s: StudentUser, lessonId: string, lessonTitle: string,
+  r: { watchedSeconds: number; durationSeconds: number; lastPosition: number; completed: boolean; credited: number }
+): StudentUser {
+  const today = cairoDay();
+  const entry = toEntry({ lessonId, watchedSeconds: r.watchedSeconds, durationSeconds: r.durationSeconds, lastPosition: r.lastPosition, completed: r.completed }, lessonTitle);
+  return {
+    ...s,
+    watchHistory: [entry, ...(s.watchHistory || []).filter(h => h.lessonId !== lessonId)],
+    watchLog: { ...(s.watchLog || {}), [today]: ((s.watchLog || {})[today] || 0) + r.credited },
+    lastWatchedLessonId: lessonId,
+    completedLessonIds: r.completed && !s.completedLessonIds.includes(lessonId) ? [...s.completedLessonIds, lessonId] : s.completedLessonIds
+  };
+}

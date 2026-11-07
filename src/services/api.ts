@@ -1,3 +1,4 @@
+import type { ServerProgress, AssignmentItem, TeacherAssignment, StudentAnalyticsRow, TutorMessage } from '../types';
 import {
   Lesson, StudentCode, StudentUser, ForumPost, ForumAnswer, PlatformNotification, GradeType,
   Exam, ExamResult, ExamResultRow, Account, AccountInfo, ExamReviewItem
@@ -581,4 +582,100 @@ export async function uploadFile(file: File, folder: 'videos' | 'attachments'): 
     headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'false' }
   });
   return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
+}
+
+// ---------------------------------------------------------------------------
+// Stage 1: server-side analytics, assignments, AI tutor, teacher analytics
+// ---------------------------------------------------------------------------
+
+export async function watchHeartbeat(code: string, lessonId: string, delta: number, position: number, duration: number) {
+  try {
+    const r = await srpc('ha_watch_heartbeat', {
+      p_code: code, p_device: getDeviceId(), p_lesson: lessonId,
+      p_delta: Math.max(0, delta), p_position: position, p_duration: duration
+    });
+    return r?.ok ? r as { ok: true; watchedSeconds: number; durationSeconds: number; lastPosition: number; completed: boolean; credited: number } : null;
+  } catch { return null; }
+}
+
+export async function markAttendance(code: string): Promise<number | null> {
+  try {
+    const r = await srpc('ha_mark_attendance', { p_code: code, p_device: getDeviceId() });
+    return r?.ok ? Number(r.days) : null;
+  } catch { return null; }
+}
+
+export async function myProgress(code: string): Promise<ServerProgress | null> {
+  try {
+    const r = await srpc('ha_my_progress', { p_code: code, p_device: getDeviceId() });
+    return r?.ok ? { lectures: r.lectures || [], daily: r.daily || [], attendance: r.attendance || [] } : null;
+  } catch { return null; }
+}
+
+const ASSIGN_ERRORS: Record<string, string> = {
+  UNAUTHORIZED: 'انتهت صلاحية الدخول، سجّل دخولك من جديد.',
+  NOT_FOUND: 'هذا الواجب غير متاح لك.',
+  TOO_LARGE: 'الإجابة طويلة جداً.',
+  DUE_PASSED: 'انتهى موعد تسليم هذا الواجب.',
+  ALREADY_GRADED: 'تم تصحيح هذا الواجب ولا يمكن تعديله.',
+  EMPTY: 'اكتب إجابتك أولاً.'
+};
+
+export async function assignmentFeed(code: string): Promise<AssignmentItem[]> {
+  const r = await srpc('ha_assignment_feed', { p_code: code, p_device: getDeviceId() });
+  return r?.ok ? (r.items || []) : [];
+}
+
+export async function assignmentSubmit(code: string, assignmentId: string, answer: string):
+  Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const r = await srpc('ha_assignment_submit', { p_code: code, p_device: getDeviceId(), p_assignment: assignmentId, p_answer: answer });
+    return r?.ok ? { ok: true } : { ok: false, error: ASSIGN_ERRORS[r?.error] || 'تعذر تسليم الواجب.' };
+  } catch { return { ok: false, error: 'تعذر الاتصال بالخادم. حاول مرة أخرى.' }; }
+}
+
+export async function teacherAssignments(): Promise<TeacherAssignment[]> {
+  const r = await rpc('ha_teacher_assignment_results', {}, await teacherToken());
+  if (!r?.ok) throw new Error('تعذر تحميل الواجبات.');
+  return r.items || [];
+}
+
+export async function teacherSaveAssignment(a: { id?: string | null; grade: string; title: string; body: string; dueAt: string | null; published: boolean }) {
+  const r = await rpc('ha_teacher_assignment_save', {
+    p_id: a.id || null, p_grade: a.grade, p_title: a.title.trim(), p_body: a.body, p_due: a.dueAt, p_published: a.published
+  }, await teacherToken());
+  if (!r?.ok) throw new Error(r?.error === 'INVALID_TITLE' ? 'اكتب عنواناً للواجب (حتى 180 حرفاً).' : 'تعذر حفظ الواجب.');
+}
+
+export async function teacherGradeAssignment(submissionId: string, grade: number | null, feedback: string) {
+  const r = await rpc('ha_teacher_assignment_grade', { p_submission: submissionId, p_grade: grade, p_feedback: feedback }, await teacherToken());
+  if (!r?.ok) throw new Error(r?.error === 'BAD_GRADE' ? 'الدرجة لازم تكون من 0 إلى 100.' : 'تعذر حفظ الدرجة.');
+}
+
+export async function teacherAnalytics(): Promise<StudentAnalyticsRow[]> {
+  const r = await rpc('ha_teacher_analytics', {}, await teacherToken());
+  return Array.isArray(r) ? r : [];
+}
+
+const TUTOR_ERRORS: Record<string, string> = {
+  RATE_LIMIT: 'بعتّ أسئلة كتير بسرعة. استنى دقيقة وحاول تاني.',
+  DAILY_LIMIT: 'وصلت للحد اليومي من أسئلة المدرس الذكي. كمّل بكرة.'
+};
+
+export async function askTutor(code: string, grade: string, question: string, history: TutorMessage[]):
+  Promise<{ ok: true; answer: string } | { ok: false; error: string; retryable: boolean }> {
+  try {
+    const token = await accToken();
+    const res = await fetch(SUPABASE_URL + '/functions/v1/ha-ai-tutor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ code, device: getDeviceId(), grade, question, history: history.slice(-8) })
+    });
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.ok) return { ok: true, answer: data.answer };
+    const msg = (data?.code && TUTOR_ERRORS[data.code]) || data?.error || 'تعذر الحصول على إجابة.';
+    return { ok: false, error: msg, retryable: res.status >= 500 || res.status === 429 };
+  } catch {
+    return { ok: false, error: 'تعذر الاتصال بالخادم. تأكد من الإنترنت وحاول مرة أخرى.', retryable: true };
+  }
 }

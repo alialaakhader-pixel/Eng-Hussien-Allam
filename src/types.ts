@@ -212,3 +212,56 @@ export interface AccountInfo {
   accessUntil: string | null;
   hasAccess: boolean;
 }
+
+// ---- Server-side learning analytics (Stage 1) ----
+export interface ServerLecture {
+  lessonId: string;
+  watchedSeconds: number;
+  durationSeconds: number;
+  lastPosition: number;
+  completed: boolean;
+  updatedAt: string;
+}
+export interface ServerProgress {
+  lectures: ServerLecture[];
+  daily: { day: string; seconds: number }[];
+  attendance: string[];
+}
+
+export interface AssignmentItem {
+  id: string;
+  title: string;
+  body: string;
+  dueAt: string | null;
+  submittedAt: string | null;
+  grade: number | null;
+  feedback: string | null;
+  answer: string | null;
+}
+
+export interface TeacherAssignment {
+  id: string;
+  grade: string;
+  title: string;
+  body: string;
+  dueAt: string | null;
+  published: boolean;
+  submissions: {
+    id: string; code: string; studentName: string | null; answer: string;
+    submittedAt: string; grade: number | null; feedback: string | null;
+  }[];
+}
+
+export interface StudentAnalyticsRow {
+  code: string;
+  name: string;
+  grade: string;
+  attendance_days: number;
+  last_attendance: string | null;
+  watch_seconds: number;
+  watch_seconds_7d: number;
+  completed_lectures: number;
+  last_activity: string | null;
+}
+
+export interface TutorMessage { role: 'user' | 'assistant'; content: string }
