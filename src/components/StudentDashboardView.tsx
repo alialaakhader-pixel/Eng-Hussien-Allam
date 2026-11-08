@@ -28,6 +28,7 @@ import {
   Cell
 } from 'recharts';
 import { Lesson, StudentUser } from '../types';
+import { MySubscriptionPanel } from './MySubscriptionPanel';
 import { addDays, attendanceDays, cairoDay, courseSummary, fmtMinutes, formatCairo, lastDays, lessonStatus, streak as calcStreak, watchSecondsBetween } from '../utils/progress';
 
 interface StudentDashboardViewProps {
@@ -35,13 +36,15 @@ interface StudentDashboardViewProps {
   lessons: Lesson[];
   onSelectLesson: (id: string) => void;
   onOpenLoginModal: () => void;
+  onSubscriptionChanged?: () => void;
 }
 
 export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
   currentStudent,
   lessons,
   onSelectLesson,
-  onOpenLoginModal
+  onOpenLoginModal,
+  onSubscriptionChanged
 }) => {
   // Chart tab: daily, weekly, monthly, quizzes
   const [metricTab, setMetricTab] = useState<'watch' | 'quizzes'>('watch');
@@ -78,6 +81,8 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in duration-300 space-y-8">
       
+      {currentStudent && <MySubscriptionPanel code={currentStudent.codeUsed} onChanged={onSubscriptionChanged} />}
+
       {/* If student not logged in: Clean Alert */}
       {!currentStudent && (
         <div className="bg-gradient-to-r from-amber-500/15 via-slate-800 to-slate-900 border border-amber-500/40 rounded-3xl p-6 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">

@@ -210,8 +210,12 @@ export const ExamsView: React.FC<ExamsViewProps> = ({ exams, results, currentStu
                   <h3 className="font-bold text-sm leading-snug">{ex.title}</h3>
                   {r && <Award className="w-5 h-5 text-emerald-400 shrink-0" />}
                 </div>
-                <p className="text-xs text-slate-400">{ex.questions.length} سؤال · {ex.durationMin} دقيقة</p>
-                {r ? (
+                <p className="text-xs text-slate-400">{ex.locked ? 'ضمن باقة اشتراك' : `${ex.questions.length} سؤال`} · {ex.durationMin} دقيقة</p>
+                {ex.locked ? (
+                  <div className="mt-auto rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold py-2.5 text-center">
+                    🔒 فعّل اشتراكك من لوحة الطالب ← اشتراكي
+                  </div>
+                ) : r ? (
                   <div className="flex items-center justify-between mt-auto">
                     <span className="text-lg font-black font-mono text-emerald-400">{r.score} / {r.total}</span>
                     <button onClick={() => setActiveId(ex.id)} className="text-xs font-bold text-amber-400 hover:text-amber-300">

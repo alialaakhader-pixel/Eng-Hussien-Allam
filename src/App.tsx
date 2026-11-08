@@ -571,6 +571,7 @@ export default function App() {
               setActiveTab('lessons');
             }}
             onOpenLoginModal={() => setShowStudentLoginModal(true)}
+            onSubscriptionChanged={() => { if (currentStudent) loadStudent(currentStudent.codeUsed, currentStudent.grade); }}
           />
         )}
 

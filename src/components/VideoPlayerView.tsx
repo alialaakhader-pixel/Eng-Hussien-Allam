@@ -188,6 +188,24 @@ export const VideoPlayerView: React.FC<VideoPlayerViewProps> = ({
     );
   }
 
+  if (currentActiveLesson.locked) {
+    const firstOpen = allLessons.find(l => !l.locked);
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-16 text-center text-white space-y-5">
+        <div className="text-5xl">🔒</div>
+        <h2 className="text-xl sm:text-2xl font-display font-black">{currentActiveLesson.title}</h2>
+        <p className="text-sm text-slate-300 leading-relaxed">
+          هذه المحاضرة ضمن باقة اشتراك. فعّل اشتراكك من <b>لوحة الطالب ← اشتراكي</b> بكود التفعيل لتفتحها.
+        </p>
+        {firstOpen && (
+          <button onClick={() => onSelectLesson(firstOpen.id)} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold rounded-xl text-xs border border-slate-700">
+            الرجوع لمحاضرة متاحة
+          </button>
+        )}
+      </div>
+    );
+  }
+
   // Active current video URL (YouTube / Vimeo / Drive are embedded, anything else plays as a file)
   const currentVideoSrc = currentActiveLesson.videoUrl;
   const resolved = resolveVideoSource(currentVideoSrc);

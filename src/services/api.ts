@@ -1,4 +1,4 @@
-import type { ServerProgress, AssignmentItem, TeacherAssignment, StudentAnalyticsRow, TutorMessage } from '../types';
+import type { ServerProgress, AssignmentItem, TeacherAssignment, StudentAnalyticsRow, TutorMessage, MySubscription, PlanCatalogItem, TeacherSubsOverview } from '../types';
 import {
   Lesson, StudentCode, StudentUser, ForumPost, ForumAnswer, PlatformNotification, GradeType,
   Exam, ExamResult, ExamResultRow, Account, AccountInfo, ExamReviewItem
@@ -659,7 +659,8 @@ export async function teacherAnalytics(): Promise<StudentAnalyticsRow[]> {
 
 const TUTOR_ERRORS: Record<string, string> = {
   RATE_LIMIT: 'بعتّ أسئلة كتير بسرعة. استنى دقيقة وحاول تاني.',
-  DAILY_LIMIT: 'وصلت للحد اليومي من أسئلة المدرس الذكي. كمّل بكرة.'
+  DAILY_LIMIT: 'وصلت للحد اليومي من أسئلة المدرس الذكي. كمّل بكرة.',
+  SUBSCRIPTION_REQUIRED: 'المدرس الذكي ضمن باقة اشتراك. فعّل اشتراكك من لوحة الطالب ← اشتراكي.'
 };
 
 export async function askTutor(code: string, grade: string, question: string, history: TutorMessage[]):
@@ -682,4 +683,63 @@ export async function askTutor(code: string, grade: string, question: string, hi
   } catch {
     return { ok: false, error: 'تعذر الاتصال بالخادم. تأكد من الإنترنت وحاول مرة أخرى.', retryable: true };
   }
+}
+
+// ---------- Subscriptions ----------
+const SUB_ERRORS: Record<string, string> = {
+  INVALID_CODE: 'كود التفعيل غير صحيح أو مستخدم من قبل أو منتهي.',
+  PLAN_UNAVAILABLE: 'هذه الباقة غير متاحة حالياً.',
+  WRONG_GRADE: 'هذه الباقة مخصصة لصف دراسي آخر.',
+  UNAUTHORIZED: 'سجّل دخولك أولاً.',
+  STUDENT_NOT_FOUND: 'كود الطالب غير موجود.',
+  NOT_FOUND: 'العنصر غير موجود.',
+  INVALID: 'بيانات غير صالحة.'
+};
+const subErr = (e: unknown) => SUB_ERRORS[String(e)] || 'تعذر تنفيذ العملية.';
+
+export async function mySubscriptions(code: string): Promise<{ subscriptions: MySubscription[]; plans: PlanCatalogItem[] } | null> {
+  try {
+    const r = await srpc('ha_sub_me', { p_code: code, p_device: getDeviceId() });
+    return r?.ok ? { subscriptions: r.subscriptions || [], plans: r.plans || [] } : null;
+  } catch { return null; }
+}
+
+export async function redeemActivation(code: string, activation: string):
+  Promise<{ ok: true; planName: string; endsAt: string; renewed: boolean } | { ok: false; error: string }> {
+  try {
+    const r = await srpc('ha_sub_redeem', { p_code: code, p_device: getDeviceId(), p_activation: activation });
+    return r?.ok ? { ok: true, planName: r.planName, endsAt: r.endsAt, renewed: !!r.renewed } : { ok: false, error: subErr(r?.error) };
+  } catch { return { ok: false, error: 'تعذر الاتصال بالخادم. حاول مرة أخرى.' }; }
+}
+
+export async function teacherSubsOverview(): Promise<TeacherSubsOverview> {
+  const r = await rpc('ha_teacher_subs_overview', {}, await teacherToken());
+  if (!r || r.plans === undefined) throw new Error('تعذر تحميل الاشتراكات.');
+  return r as TeacherSubsOverview;
+}
+
+export async function teacherPlanSave(p: { id?: string | null; name: string; price: number; days: number; grade: string; lessons: string[]; exams: string[]; ai: boolean; active: boolean }) {
+  const r = await rpc('ha_teacher_plan_save', {
+    p_id: p.id || null, p_name: p.name, p_price: p.price, p_days: p.days, p_grade: p.grade,
+    p_lessons: p.lessons, p_exams: p.exams, p_ai: p.ai, p_active: p.active
+  }, await teacherToken());
+  if (!r?.ok) throw new Error(subErr(r?.error));
+}
+export async function teacherPlanDelete(id: string): Promise<{ deactivated: boolean }> {
+  const r = await rpc('ha_teacher_plan_delete', { p_id: id }, await teacherToken());
+  if (!r?.ok) throw new Error(subErr(r?.error));
+  return { deactivated: !!r.deactivated };
+}
+export async function teacherGenerateCodes(planId: string, count: number, expiresAt: string | null): Promise<string[]> {
+  const r = await rpc('ha_teacher_codes_generate', { p_plan: planId, p_count: count, p_expires: expiresAt }, await teacherToken());
+  if (!r?.ok) throw new Error(subErr(r?.error));
+  return r.codes || [];
+}
+export async function teacherGrantSub(student: string, planId: string, days: number | null) {
+  const r = await rpc('ha_teacher_sub_grant', { p_student: student, p_plan: planId, p_days: days }, await teacherToken());
+  if (!r?.ok) throw new Error(subErr(r?.error));
+}
+export async function teacherSetSubStatus(id: string, status: 'active' | 'paused' | 'cancelled') {
+  const r = await rpc('ha_teacher_sub_set_status', { p_id: id, p_status: status }, await teacherToken());
+  if (!r?.ok) throw new Error(subErr(r?.error));
 }

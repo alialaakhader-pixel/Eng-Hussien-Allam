@@ -36,6 +36,7 @@ export interface Lesson {
   keyPoints?: string[];
   quiz?: QuizQuestion[];
   laws?: LessonLaw[];
+  locked?: boolean;
 }
 
 export interface LawVariable {
@@ -167,6 +168,7 @@ export interface Exam {
   durationMin: number;
   questions: ExamQuestion[];
   createdAt?: string;
+  locked?: boolean;
 }
 
 export interface ExamReviewItem {
@@ -265,3 +267,21 @@ export interface StudentAnalyticsRow {
 }
 
 export interface TutorMessage { role: 'user' | 'assistant'; content: string }
+
+export interface MySubscription {
+  id: string; planId: string; planName: string; startsAt: string; endsAt: string;
+  status: 'active' | 'paused' | 'cancelled' | 'expired'; daysLeft: number;
+  includesAi: boolean; lessonCount: number; examCount: number; source: 'teacher' | 'activation_code';
+}
+export interface PlanCatalogItem { id: string; name: string; price: number; durationDays: number; includesAi: boolean; lessonCount: number; examCount: number }
+export interface TeacherPlan {
+  id: string; name: string; price: number; durationDays: number; grade: string | null;
+  lessonIds: string[]; examIds: string[]; includesAi: boolean; active: boolean; subscribers: number;
+}
+export interface TeacherSubscription {
+  id: string; code: string; student: string; plan: string; plan_id: string; starts_at: string; ends_at: string;
+  source: string; raw_status: string; status: 'active' | 'expiring' | 'expired' | 'paused' | 'cancelled'; days_left: number;
+}
+export interface TeacherActivationCode { code: string; plan_id: string; plan: string; active: boolean; expires_at: string | null; used_by: string | null; used_at: string | null; created_at: string }
+export interface SubscriptionLogItem { id: number; code: string; student: string; action: string; details: Record<string, unknown>; actor: string; at: string }
+export interface TeacherSubsOverview { plans: TeacherPlan[]; subscriptions: TeacherSubscription[]; codes: TeacherActivationCode[]; log: SubscriptionLogItem[] }

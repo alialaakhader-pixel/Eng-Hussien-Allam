@@ -33,6 +33,7 @@ import { TeacherAccountsPanel } from './TeacherAccountsPanel';
 import { TeacherExamsPanel } from './TeacherExamsPanel';
 import { TeacherAssignmentsPanel } from './TeacherAssignmentsPanel';
 import { TeacherInsightsPanel } from './TeacherInsightsPanel';
+import { TeacherSubscriptionsPanel } from './TeacherSubscriptionsPanel';
 import { generateRandomCode } from '../services/store';
 import { uploadFile } from '../services/api';
 import { exportToCsv } from '../utils/helpers';
@@ -86,7 +87,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   onDeleteExam,
   onDeleteExamResult
 }) => {
-  const [activeTab, setActiveTab] = useState<'upload' | 'codes' | 'students' | 'forum' | 'lessons' | 'accounts' | 'exams' | 'assignments' | 'insights'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'codes' | 'students' | 'forum' | 'lessons' | 'accounts' | 'exams' | 'assignments' | 'insights' | 'subscriptions'>('upload');
   
   // ---- 1. Upload Lesson State (Fully custom inputs as requested) ----
   const [title, setTitle] = useState('');
@@ -496,6 +497,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         >
           <Award className="w-4 h-4" />
           <span>التحليلات والتنبيهات 📊</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('subscriptions')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all ${
+            activeTab === 'subscriptions'
+              ? 'bg-amber-500 text-slate-950 shadow-md font-black shadow-amber-500/20'
+              : 'bg-slate-800/70 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60'
+          }`}
+        >
+          <Award className="w-4 h-4" />
+          <span>الاشتراكات 💳</span>
         </button>
 
         <button
@@ -973,6 +985,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {activeTab === 'assignments' && <TeacherAssignmentsPanel />}
 
       {activeTab === 'insights' && <TeacherInsightsPanel examResults={examResults} />}
+
+      {activeTab === 'subscriptions' && <TeacherSubscriptionsPanel lessons={lessons} exams={exams} />}
 
       {activeTab === 'exams' && (
         <TeacherExamsPanel
