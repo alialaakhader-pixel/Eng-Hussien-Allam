@@ -13,7 +13,7 @@ html {
 html, body {
   font-family: var(--font-cairo);
   letter-spacing: normal !important;
-  text-rendering: optimizeLegibility;
+  text-rendering: auto; /* optimizeLegibility makes long Arabic pages slow to scroll on phones */
   -webkit-font-smoothing: antialiased;
 }
 
@@ -79,4 +79,15 @@ span, p, h1, h2, h3, h4, a, button, input, textarea, select {
   .animate-spin-slow {
     animation: none;
   }
+}
+
+/* Phones / touch devices: drop purely decorative GPU-heavy effects so scrolling stays smooth.
+   (huge blurred blobs, endless rotation, live backdrop blur behind scrolling content) */
+@media (max-width: 767px), (pointer: coarse) {
+  .animate-spin-slow { animation: none !important; }
+  .blur-3xl, .blur-2xl { display: none !important; }
+  .backdrop-blur, .backdrop-blur-sm, .backdrop-blur-md, .backdrop-blur-lg, .backdrop-blur-xl {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  }
+  html { scroll-behavior: auto !important; }
 }
