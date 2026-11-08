@@ -2,7 +2,7 @@ import React from 'react';
 
 export const GlassPhysicsBackground: React.FC = () => {
   return (
-    <div className="hidden md:block fixed inset-0 pointer-events-none overflow-hidden z-0 select-none transform-gpu">
+    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 select-none transform-gpu" style={{ contain: 'paint' }}>
       
       {/* 1. Glass Rutherford-Bohr Atom (Top Right) */}
       <div className="absolute -top-12 -right-12 w-80 h-80 sm:w-96 sm:h-96 opacity-35 dark:opacity-40 animate-spin-slow will-change-transform">

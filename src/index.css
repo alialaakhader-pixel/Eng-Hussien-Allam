@@ -81,13 +81,14 @@ span, p, h1, h2, h3, h4, a, button, input, textarea, select {
   }
 }
 
-/* Phones / touch devices: drop purely decorative GPU-heavy effects so scrolling stays smooth.
-   (huge blurred blobs, endless rotation, live backdrop blur behind scrolling content) */
-@media (max-width: 767px), (pointer: coarse) {
-  .animate-spin-slow { animation: none !important; }
-  .blur-3xl, .blur-2xl { display: none !important; }
-  .backdrop-blur, .backdrop-blur-sm, .backdrop-blur-md, .backdrop-blur-lg, .backdrop-blur-xl {
-    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
-  }
-  html { scroll-behavior: auto !important; }
+/* Same look, cheaper to draw: big blurred blobs (filter: blur) are very slow on phones while scrolling.
+   A radial gradient gives the same soft glow without any blur filter. */
+.blur-3xl, .blur-2xl {
+  filter: none !important;
+  background-color: transparent !important;
+  background-image: radial-gradient(closest-side, var(--blob-c, rgba(245, 158, 11, 0.16)), rgba(245, 158, 11, 0));
+}
+.blur-3xl.bg-sky-500\/10, .blur-3xl.bg-sky-500\/15, .blur-2xl.bg-sky-500\/10, .blur-2xl.bg-sky-500\/15 {
+  --blob-c: rgba(14, 165, 233, 0.16);
+  background-image: radial-gradient(closest-side, var(--blob-c), rgba(14, 165, 233, 0));
 }
