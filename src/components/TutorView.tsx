@@ -16,6 +16,7 @@ export const TutorView: React.FC<Props> = ({ student }) => {
   const [error, setError] = useState<{ msg: string; retryable: boolean; question: string; images: string[] } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inflight = useRef(false);
+  const [saved, setSaved] = useState<Record<number, 'ok' | 'err' | 'busy'>>({});
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
 
@@ -60,6 +61,15 @@ export const TutorView: React.FC<Props> = ({ student }) => {
     send(error.question, error.images, base);
   };
 
+  const saveToMistakes = async (idx: number) => {
+    const ans = messages[idx];
+    const ques = [...messages.slice(0, idx)].reverse().find(m => m.role === 'user');
+    if (!ans || !ques) return;
+    setSaved(s => ({ ...s, [idx]: 'busy' }));
+    const r = await api.mistakeAdd(student.codeUsed, { source: 'ai', question: (ques.content || 'سؤال بصورة').slice(0, 3000), explanation: ans.content.slice(0, 6000), reason: 'لم أفهم الدرس' });
+    setSaved(s => ({ ...s, [idx]: r.ok ? 'ok' : 'err' }));
+  };
+
   const addFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setPrep(true); setError(null);
@@ -99,6 +109,14 @@ export const TutorView: React.FC<Props> = ({ student }) => {
               )}
               {!m.images?.length && m.imageCount ? <span className="block text-[11px] opacity-80 mb-1">📷 أُرسلت {m.imageCount} صورة</span> : null}
               {m.content}
+              {m.role === 'assistant' && (
+                <div className="mt-2 pt-2 border-t border-slate-700">
+                  <button type="button" disabled={saved[i] === 'busy' || saved[i] === 'ok'} onClick={() => saveToMistakes(i)}
+                    className="text-[11px] font-bold text-amber-300 hover:text-amber-200 disabled:opacity-70">
+                    {saved[i] === 'ok' ? '✓ اتحفظ في كل الأخطاء' : saved[i] === 'err' ? 'تعذر الحفظ. حاول تاني' : saved[i] === 'busy' ? 'جاري الحفظ…' : '+ احفظ السؤال ده في كل الأخطاء'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}

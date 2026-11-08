@@ -294,3 +294,25 @@ export interface StudyItem {
 export interface StudySettings { tz: string; restDays: number[]; notifyEnabled: boolean; dailySummary: boolean; summaryTime: string }
 export interface UserNotification { id: string; kind: string; title: string; body: string; createdAt: string; read: boolean }
 export interface StudyState { settings: StudySettings; items: StudyItem[]; done: { itemId: string; day: string }[]; notifications: UserNotification[]; unread: number; pushDevices: number }
+
+export type MistakeStatus = 'new' | 'reviewed' | 'mastered' | 'archived';
+export type MistakeSource = 'exam' | 'quiz' | 'assignment' | 'ai' | 'manual';
+export interface Mistake {
+  id: string; source: MistakeSource; question: string; options: string[]; correctIndex: number | null; studentIndex: number | null;
+  studentAnswer: string | null; correctAnswer: string | null; explanation: string | null; reason: string | null; chapter: string | null;
+  lessonId: string | null; lessonTitle: string | null; hasImage: boolean; status: MistakeStatus; reviewSet: boolean; note: string | null;
+  timesWrong: number; createdAt: string; lastWrongAt: string; reviewedAt: string | null;
+}
+export interface MistakeNew {
+  source?: 'manual' | 'ai'; question: string; options?: string[]; correctIndex?: number | null; studentIndex?: number | null; studentAnswer?: string;
+  correctAnswer?: string; explanation?: string; reason?: string; lessonTitle?: string; chapter?: string; lessonId?: string; imageData?: string;
+}
+export interface MistakeExamItem { id: string; question: string; options: string[]; hasImage?: boolean; lesson?: string | null }
+export interface MistakeExamResultItem extends MistakeExamItem {
+  chosenIndex: number | null; correctIndex: number; correct: boolean; explanation: string | null; repeated: boolean; timesWrong: number;
+}
+export interface MistakeExamHistory { id: string; score: number; total: number; late: boolean; submittedAt: string; durationMin: number }
+export interface TeacherMistakesOverview {
+  topLessons: { lesson: string; mistakes: number; students: number; max_repeat: number }[];
+  students: { code: string; name: string; total: number; unreviewed: number; mastered: number; last_review: string | null; exams_taken: number; not_reviewing: boolean }[];
+}

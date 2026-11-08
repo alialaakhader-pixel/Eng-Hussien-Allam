@@ -1,4 +1,4 @@
-import type { ServerProgress, AssignmentItem, TeacherAssignment, StudentAnalyticsRow, TutorMessage, MySubscription, PlanCatalogItem, TeacherSubsOverview, StudyItem, StudySettings, StudyState } from '../types';
+import type { ServerProgress, AssignmentItem, TeacherAssignment, StudentAnalyticsRow, TutorMessage, MySubscription, PlanCatalogItem, TeacherSubsOverview, StudyItem, StudySettings, StudyState, Mistake, MistakeNew, MistakeExamItem, MistakeExamResultItem, MistakeExamHistory, TeacherMistakesOverview } from '../types';
 import {
   Lesson, StudentCode, StudentUser, ForumPost, ForumAnswer, PlatformNotification, GradeType,
   Exam, ExamResult, ExamResultRow, Account, AccountInfo, ExamReviewItem
@@ -794,4 +794,55 @@ export async function tutorHistory(code: string): Promise<TutorMessage[]> {
     const r = await srpc('ha_ai_history', { p_code: code, p_device: getDeviceId(), p_limit: 20 });
     return r?.ok ? (r.messages || []).map((m: any) => ({ role: m.role, content: m.content, imageCount: m.imageCount || 0 })) : [];
   } catch { return []; }
+}
+
+// ---------- Mistakes notebook (كل الأخطاء) ----------
+export async function mistakesLoad(code: string): Promise<Mistake[] | null> {
+  try {
+    await srpc('ha_mistakes_sync', { p_code: code, p_device: getDeviceId() }); // derive exam / assignment mistakes on the server
+    const r = await srpc('ha_mistakes_list', { p_code: code, p_device: getDeviceId() });
+    return r?.ok ? (r.items as Mistake[]) : null;
+  } catch { return null; }
+}
+const MISTAKE_ERRORS: Record<string, string> = { INVALID: 'راجع البيانات: نص السؤال مطلوب، والاختيارات من 2 إلى 6، ورقم الإجابة الصحيحة ضمن الاختيارات.', INVALID_IMAGE: 'الصورة غير صالحة أو كبيرة.', LIMIT: 'وصلت للحد الأقصى من الأسئلة (600). احذف أو أرشف بعضها.', NOT_FOUND: 'غير موجود.' };
+export async function mistakeAdd(code: string, m: MistakeNew): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const r = await srpc('ha_mistake_add', { p_code: code, p_device: getDeviceId(), p_m: m });
+    return r?.ok ? { ok: true } : { ok: false, error: MISTAKE_ERRORS[r?.error] || 'تعذر الحفظ.' };
+  } catch { return { ok: false, error: 'تعذر الاتصال بالخادم.' }; }
+}
+export async function mistakeUpdate(code: string, id: string, patch: { status?: string; note?: string; reason?: string; reviewSet?: boolean }): Promise<boolean> {
+  try { return !!(await srpc('ha_mistake_update', { p_code: code, p_device: getDeviceId(), p_id: id, p_patch: patch }))?.ok; } catch { return false; }
+}
+export async function mistakeDelete(code: string, id: string): Promise<boolean> {
+  try { return !!(await srpc('ha_mistake_delete', { p_code: code, p_device: getDeviceId(), p_id: id }))?.ok; } catch { return false; }
+}
+export async function mistakeImage(code: string, id: string): Promise<string | null> {
+  try { const r = await srpc('ha_mistake_image', { p_code: code, p_device: getDeviceId(), p_id: id }); return r?.ok ? r.image : null; } catch { return null; }
+}
+export async function mistakeQuizReport(code: string, lessonId: string, qid: string, chosen: number): Promise<void> {
+  try { await srpc('ha_mistake_quiz_report', { p_code: code, p_device: getDeviceId(), p_lesson: lessonId, p_qid: qid, p_chosen: chosen }); } catch { /* best effort */ }
+}
+export async function mistakeExamStart(code: string, o: { ids: string[] | null; count: number; difficulty: string; order: string; minutes: number }):
+  Promise<{ ok: true; id: string; durationMin: number; items: MistakeExamItem[] } | { ok: false; error: string }> {
+  try {
+    const r = await srpc('ha_mistake_exam_start', { p_code: code, p_device: getDeviceId(), p_ids: o.ids, p_count: o.count, p_difficulty: o.difficulty, p_order: o.order, p_minutes: o.minutes });
+    if (r?.ok) return { ok: true, id: r.id, durationMin: r.durationMin, items: r.items };
+    return { ok: false, error: r?.error === 'NO_ELIGIBLE' ? 'مفيش أسئلة اختيار من متعدد مناسبة للإعدادات دي. غيّر الفلتر أو أضف أسئلة بخيارات.' : 'تعذر إنشاء الامتحان.' };
+  } catch { return { ok: false, error: 'تعذر الاتصال بالخادم.' }; }
+}
+export async function mistakeExamSubmit(code: string, examId: string, answers: (number | null)[]):
+  Promise<{ ok: true; score: number; total: number; late: boolean; items: MistakeExamResultItem[] } | { ok: false; error: string }> {
+  try {
+    const r = await srpc('ha_mistake_exam_submit', { p_code: code, p_device: getDeviceId(), p_exam: examId, p_answers: answers });
+    return r?.ok ? { ok: true, score: r.score, total: r.total, late: !!r.late, items: r.items } : { ok: false, error: r?.error === 'ALREADY_SUBMITTED' ? 'تم تسليم هذا الامتحان من قبل.' : 'تعذر تسليم الامتحان.' };
+  } catch { return { ok: false, error: 'تعذر الاتصال بالخادم. حاول مرة أخرى.' }; }
+}
+export async function mistakeExamsList(code: string): Promise<MistakeExamHistory[]> {
+  try { const r = await srpc('ha_mistake_exams_list', { p_code: code, p_device: getDeviceId() }); return r?.ok ? r.items : []; } catch { return []; }
+}
+export async function teacherMistakesOverview(): Promise<TeacherMistakesOverview> {
+  const r = await rpc('ha_teacher_mistakes_overview', {}, await teacherToken());
+  if (!r || r.topLessons === undefined) throw new Error('تعذر تحميل تحليل الأخطاء.');
+  return r as TeacherMistakesOverview;
 }

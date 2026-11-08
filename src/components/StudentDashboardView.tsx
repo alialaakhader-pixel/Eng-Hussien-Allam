@@ -30,6 +30,8 @@ import {
 import { Lesson, StudentUser } from '../types';
 import { MySubscriptionPanel } from './MySubscriptionPanel';
 import { StudyPlannerPanel } from './StudyPlannerPanel';
+import { MistakesPanel } from './MistakesPanel';
+import * as api from '../services/api';
 import { addDays, attendanceDays, cairoDay, courseSummary, fmtMinutes, formatCairo, lastDays, lessonStatus, streak as calcStreak, watchSecondsBetween } from '../utils/progress';
 
 interface StudentDashboardViewProps {
@@ -85,6 +87,17 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
       {currentStudent && <MySubscriptionPanel code={currentStudent.codeUsed} onChanged={onSubscriptionChanged} />}
 
       {currentStudent && <StudyPlannerPanel code={currentStudent.codeUsed} lessons={lessons} />}
+
+      {currentStudent && (
+        <MistakesPanel
+          student={currentStudent}
+          onAddToPlanner={async (lesson) => {
+            const tomorrow = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Africa/Cairo' }).format(new Date(Date.now() + 86400_000));
+            const r = await api.studySaveItem(currentStudent.codeUsed, { title: `مراجعة: ${lesson}`.slice(0, 120), subject: 'فيزياء', kind: 'study', repeat: 'once', days: [], onceDate: tomorrow, startTime: '18:00', endTime: '19:00', remindBeforeMin: 10, enabled: true });
+            return r.ok;
+          }}
+        />
+      )}
 
       {/* If student not logged in: Clean Alert */}
       {!currentStudent && (

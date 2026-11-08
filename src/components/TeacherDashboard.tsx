@@ -34,6 +34,7 @@ import { TeacherExamsPanel } from './TeacherExamsPanel';
 import { TeacherAssignmentsPanel } from './TeacherAssignmentsPanel';
 import { TeacherInsightsPanel } from './TeacherInsightsPanel';
 import { TeacherSubscriptionsPanel } from './TeacherSubscriptionsPanel';
+import { TeacherMistakesPanel } from './TeacherMistakesPanel';
 import { generateRandomCode } from '../services/store';
 import { uploadFile } from '../services/api';
 import { exportToCsv } from '../utils/helpers';
@@ -984,7 +985,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
       {activeTab === 'assignments' && <TeacherAssignmentsPanel />}
 
-      {activeTab === 'insights' && <TeacherInsightsPanel examResults={examResults} />}
+      {activeTab === 'insights' && (
+        <div className="space-y-6">
+          <TeacherInsightsPanel examResults={examResults} />
+          <TeacherMistakesPanel />
+        </div>
+      )}
 
       {activeTab === 'subscriptions' && <TeacherSubscriptionsPanel lessons={lessons} exams={exams} />}
 

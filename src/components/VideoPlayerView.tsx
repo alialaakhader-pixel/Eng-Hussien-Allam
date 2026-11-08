@@ -28,6 +28,7 @@ import { triggerDownload, triggerTextDownload } from '../utils/helpers';
 import { resolveVideoSource } from '../utils/video';
 import { SimulationBoard } from './SimulationBoard';
 import { useWatchTracker } from '../utils/useWatchTracker';
+import * as api from '../services/api';
 
 interface VideoPlayerViewProps {
   lesson?: Lesson | null;
@@ -357,6 +358,11 @@ ${currentActiveLesson.description}
     });
     setQuizScore(score);
     setQuizSubmitted(true);
+    if (currentStudent) {
+      currentActiveLesson.quiz.forEach(q => {
+        if (selectedAnswers[q.id] !== q.correctIndex) api.mistakeQuizReport(currentStudent.codeUsed, currentActiveLesson.id, q.id, selectedAnswers[q.id] ?? -1);
+      });
+    }
 
     if (onSaveQuizScore) {
       onSaveQuizScore(currentActiveLesson.id, score, currentActiveLesson.quiz.length);
