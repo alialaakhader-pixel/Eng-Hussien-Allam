@@ -851,3 +851,43 @@ export interface PublicPlan { id: string; name: string; price: number; durationD
 export async function publicPlans(): Promise<PublicPlan[] | null> {
   try { const r = await rpc('ha_public_plans', {}); return Array.isArray(r) ? r : null; } catch { return null; }
 }
+
+// ---------- Manual payments (Vodafone Cash / InstaPay transfer + receipt, teacher approves) ----------
+export interface PayInfo { vodafoneCash: string; instapay: string; instructions: string }
+export interface MyPayment { id: string; planId: string; plan: string; amount: number; method: string; status: 'pending' | 'approved' | 'rejected'; reason: string; createdAt: string }
+export interface TeacherPayment { id: string; code: string; student: string; plan: string; amount: number; method: string; sender_ref: string; status: 'pending' | 'approved' | 'rejected'; reject_reason: string; created_at: string; reviewed_at: string | null }
+const PAY_ERRORS: Record<string, string> = {
+  PLAN_UNAVAILABLE: 'هذه الباقة غير متاحة حالياً.', WRONG_GRADE: 'هذه الباقة مخصصة لصف دراسي آخر.', INVALID: 'بيانات غير صالحة.',
+  INVALID_IMAGE: 'صورة الإيصال غير صالحة أو كبيرة. جرّب صورة أوضح وأصغر.', PENDING_EXISTS: 'عندك طلب دفع قيد المراجعة لنفس الباقة. استنى رد المدرس.',
+  TOO_MANY: 'وصلت للحد اليومي من طلبات الدفع. حاول بكرة.', UNAUTHORIZED: 'سجّل دخولك أولاً.', ALREADY_REVIEWED: 'تمت مراجعة هذا الطلب من قبل.', NOT_FOUND: 'الطلب غير موجود.'
+};
+export async function payInfo(): Promise<PayInfo | null> {
+  try { const r = await rpc('ha_pay_info', {}); return r && typeof r === 'object' ? r : null; } catch { return null; }
+}
+export async function payCreate(code: string, planId: string, method: 'vodafone_cash' | 'instapay', ref: string, receipt: string):
+  Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const r = await srpc('ha_pay_create', { p_code: code, p_device: getDeviceId(), p_plan: planId, p_method: method, p_ref: ref, p_receipt: receipt });
+    return r?.ok ? { ok: true } : { ok: false, error: PAY_ERRORS[r?.error] || 'تعذر إرسال طلب الدفع.' };
+  } catch { return { ok: false, error: 'تعذر الاتصال بالخادم. حاول مرة أخرى.' }; }
+}
+export async function payMine(code: string): Promise<MyPayment[]> {
+  try { const r = await srpc('ha_pay_mine', { p_code: code, p_device: getDeviceId() }); return r?.ok ? r.payments || [] : []; } catch { return []; }
+}
+export async function teacherPayList(): Promise<{ settings: PayInfo; payments: TeacherPayment[] }> {
+  const r = await rpc('ha_teacher_pay_list', {}, await teacherToken());
+  if (!r || r.payments === undefined) throw new Error('تعذر تحميل المدفوعات.');
+  return r;
+}
+export async function teacherPayReceipt(id: string): Promise<string> {
+  const r = await rpc('ha_teacher_pay_receipt', { p_id: id }, await teacherToken());
+  return typeof r === 'string' ? r : '';
+}
+export async function teacherPayReview(id: string, approve: boolean, reason: string) {
+  const r = await rpc('ha_teacher_pay_review', { p_id: id, p_approve: approve, p_reason: reason }, await teacherToken());
+  if (!r?.ok) throw new Error(PAY_ERRORS[r?.error] || 'تعذر تنفيذ العملية.');
+}
+export async function teacherPaySaveSettings(s: PayInfo) {
+  const r = await rpc('ha_teacher_pay_settings_save', { p_vodafone: s.vodafoneCash, p_instapay: s.instapay, p_instructions: s.instructions }, await teacherToken());
+  if (!r?.ok) throw new Error('تعذر حفظ الإعدادات.');
+}

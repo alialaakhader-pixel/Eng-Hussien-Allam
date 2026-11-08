@@ -3,6 +3,7 @@ import { Loader2, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import { Exam, Lesson, TeacherPlan, TeacherSubsOverview } from '../types';
 import * as api from '../services/api';
 import { formatCairo } from '../utils/progress';
+import { TeacherPaymentsPanel } from './TeacherPaymentsPanel';
 
 const inp = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500';
 const GRADES = [{ v: '', l: 'كل الصفوف' }, { v: '1ث', l: '1ث' }, { v: '2ث', l: '2ث' }, { v: '3ث', l: '3ث' }];
@@ -21,7 +22,7 @@ export const TeacherSubscriptionsPanel: React.FC<{ lessons: Lesson[]; exams: Exa
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState<'subs' | 'plans' | 'codes' | 'log'>('subs');
+  const [view, setView] = useState<'subs' | 'plans' | 'codes' | 'pay' | 'log'>('subs');
   const [q, setQ] = useState('');
 
   // plan form
@@ -86,10 +87,23 @@ export const TeacherSubscriptionsPanel: React.FC<{ lessons: Lesson[]; exams: Exa
   const visibleLessons = lessons.filter(l => !grade || l.grade === grade);
   const plans = data?.plans || [];
 
+  if (view === 'pay') {
+    return (
+      <div className="space-y-5 text-white">
+        <div className="flex flex-wrap gap-2">
+          {([['subs', 'المشتركون'], ['plans', 'الباقات'], ['codes', 'أكواد التفعيل'], ['pay', 'المدفوعات'], ['log', 'السجل']] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setView(k)} className={`px-4 py-2 rounded-xl text-xs font-bold ${view === k ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>{l}</button>
+          ))}
+        </div>
+        <TeacherPaymentsPanel onChanged={load} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5 text-white">
       <div className="flex flex-wrap gap-2">
-        {([['subs', 'المشتركون'], ['plans', 'الباقات'], ['codes', 'أكواد التفعيل'], ['log', 'السجل']] as const).map(([k, l]) => (
+        {([['subs', 'المشتركون'], ['plans', 'الباقات'], ['codes', 'أكواد التفعيل'], ['pay', 'المدفوعات'], ['log', 'السجل']] as const).map(([k, l]) => (
           <button key={k} onClick={() => setView(k)} className={`px-4 py-2 rounded-xl text-xs font-bold ${view === k ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>{l}</button>
         ))}
       </div>
