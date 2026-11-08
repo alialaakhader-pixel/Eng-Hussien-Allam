@@ -66,7 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Logo & Identity */}
           <div 
             onClick={() => handleNavClick('home')}
-            className="flex items-center gap-3.5 cursor-pointer group select-none"
+            className="flex items-center gap-3.5 cursor-pointer group select-none shrink-0"
           >
             <div className="relative w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/25 group-hover:scale-105 transition-transform duration-300">
               <Atom className="w-6 h-6 text-slate-950 animate-spin-slow" />
@@ -90,7 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-1.5 bg-slate-800/60 p-1.5 rounded-2xl border border-slate-700/50">
+          <nav className="hidden lg:flex items-center gap-1.5 bg-slate-800/60 p-1.5 rounded-2xl border border-slate-700/50 min-w-0 flex-1 mx-3 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>button]:shrink-0 [&>button]:whitespace-nowrap">
             <button
               onClick={() => handleNavClick('home')}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold transition-all duration-200 ${
@@ -191,7 +191,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Right Action Icons & Auth Badges */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 shrink-0">
             {/* Theme Toggle */}
             <button
               onClick={() => setDarkMode(!darkMode)}
