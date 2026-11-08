@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-// AI tutor. Secrets (server side only): OPENAI_API_KEY, optional OPENAI_MODEL (default gpt-4o).
+// AI tutor. Secrets (server side only): any of a Groq (gsk_...), xAI (xai-...) or OpenAI (sk-...) key; optional GROQ_MODEL / XAI_MODEL / OPENAI_MODEL.
 // Student identity + rate limits are enforced by the ha_ai_gate RPC (code+device, or the email-account JWT).
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -12,13 +12,30 @@ const cors = {
 const reply = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), { status, headers: cors });
 
-// Accept the usual spellings of the secret name so a small naming slip does not break the tutor.
-const KEY_NAMES = ["OPENAI_API_KEY", "OPENAI_KEY", "OPENAI", "OpenAI", "OPEN_AI", "Open ai", "Open AI", "open ai"];
-const readKey = (): string | null => {
-  for (const n of KEY_NAMES) {
-    try { const v = Deno.env.get(n); if (v && v.trim()) return v.trim(); } catch { /* ignore */ }
+// The provider is detected from the key itself (gsk_ = Groq, xai- = xAI Grok, sk- = OpenAI), not from the secret's name,
+// so any secret name works. Preference order: Groq, xAI, OpenAI; a provider that is out of credit falls through to the next.
+type Provider = { id: "groq" | "xai" | "openai"; key: string; url: string; models: string[] };
+
+const providers = (): Provider[] => {
+  const found: Record<string, string> = {};
+  let all: Record<string, string> = {};
+  try { all = Deno.env.toObject(); } catch { /* ignore */ }
+  for (const [name, raw] of Object.entries(all)) {
+    const v = (raw || "").trim();
+    if (!v || name.startsWith("SUPABASE_") || name.startsWith("SB_") || name === "DENO_DEPLOYMENT_ID") continue;
+    if (v.startsWith("gsk_")) found.groq = v;
+    else if (v.startsWith("xai-")) found.xai = v;
+    else if (/^sk-[A-Za-z0-9_-]{20,}/.test(v)) found.openai = v;
   }
-  return null;
+  const list: Provider[] = [];
+  const m = (v: string | undefined, ...d: string[]) => [v, ...d].filter((x): x is string => !!x);
+  if (found.groq) list.push({ id: "groq", key: found.groq, url: "https://api.groq.com/openai/v1/chat/completions",
+    models: m(Deno.env.get("GROQ_MODEL"), "openai/gpt-oss-120b", "llama-3.3-70b-versatile") });
+  if (found.xai) list.push({ id: "xai", key: found.xai, url: "https://api.x.ai/v1/chat/completions",
+    models: m(Deno.env.get("XAI_MODEL"), "grok-4", "grok-3") });
+  if (found.openai) list.push({ id: "openai", key: found.openai, url: "https://api.openai.com/v1/chat/completions",
+    models: m(Deno.env.get("OPENAI_MODEL"), "gpt-4o") });
+  return list;
 };
 
 const GRADE_NAMES: Record<string, string> = {
@@ -34,18 +51,17 @@ Deno.serve(async (req: Request) => {
     return reply(200, {
       ok: true,
       service: "ha-ai-tutor",
-      openaiKeyConfigured: !!readKey(),
+      providers: providers().map((p) => ({ id: p.id, models: p.models })),
       supabaseUrlConfigured: !!Deno.env.get("SUPABASE_URL"),
-      model: Deno.env.get("OPENAI_MODEL") || "gpt-4o",
     });
   }
   if (req.method !== "POST") return reply(405, { ok: false, error: "الطريقة غير مسموحة." });
 
-  const apiKey = readKey();
+  const chain = providers();
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   // The publishable key is public; fall back to the one the browser sent if the env var is not injected.
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || req.headers.get("apikey") || "";
-  if (!apiKey) return reply(503, { ok: false, code: "NO_OPENAI_KEY", error: "خدمة المدرس الذكي لم تُفعّل بعد. يلزم ضبط مفتاح OpenAI في أسرار الخادم." });
+  if (chain.length === 0) return reply(503, { ok: false, code: "NO_AI_KEY", error: "خدمة المدرس الذكي لم تُفعّل بعد. يلزم ضبط مفتاح الذكاء الاصطناعي في أسرار الخادم." });
   if (!supabaseUrl || !anonKey) return reply(503, { ok: false, code: "NO_SUPABASE_ENV", error: "إعدادات التحقق من الطالب غير مكتملة على الخادم." });
 
   let body: any;
@@ -101,27 +117,32 @@ Deno.serve(async (req: Request) => {
 
 الأسلوب: بالعربية المصرية المبسّطة، صبور ومشجّع، فقرات قصيرة وقوانين واضحة. إذا كان السؤال خارج الدراسة والفيزياء فأجب باختصار ووجّه الطالب للموضوع التعليمي.`;
 
-    const model = Deno.env.get("OPENAI_MODEL") || "gpt-4o";
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        temperature: 0.3,
-        messages: [{ role: "system", content: systemPrompt }, ...safeHistory, { role: "user", content: question }],
-        max_tokens: 1400,
-      }),
-    });
-    const result = await response.json().catch(() => null);
-    if (!response.ok) {
-      console.error("openai_error", response.status, JSON.stringify(result?.error ?? {}).slice(0, 300));
-      return response.status === 429
-        ? reply(429, { ok: false, error: "الضغط على المدرس الذكي كبير حالياً. حاول بعد دقيقة." })
-        : reply(502, { ok: false, error: "حصلت مشكلة أثناء توليد الشرح. حاول مرة أخرى." });
+    const messages = [{ role: "system", content: systemPrompt }, ...safeHistory, { role: "user", content: question }];
+    let sawRateLimit = false;
+    for (const prov of chain) {
+      for (const model of prov.models) {
+        const response = await fetch(prov.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${prov.key}` },
+          body: JSON.stringify({ model, temperature: 0.3, messages, max_tokens: 2500 }),
+        });
+        const result = await response.json().catch(() => null);
+        if (response.ok) {
+          const answer = result?.choices?.[0]?.message?.content;
+          if (typeof answer === "string" && answer.trim()) {
+            return reply(200, { ok: true, answer: answer.trim(), model, provider: prov.id, remainingToday: g.remainingToday });
+          }
+          continue; // empty answer: try the next model
+        }
+        console.error("ai_error", prov.id, model, response.status, JSON.stringify(result?.error ?? {}).slice(0, 300));
+        if (response.status === 429) sawRateLimit = true;
+        if (response.status === 401 || response.status === 402 || response.status === 403 || response.status === 429) break; // key/credit/limit: next provider
+        // 400/404 (unknown or retired model) or 5xx: try the next model
+      }
     }
-    const answer = result?.choices?.[0]?.message?.content;
-    if (typeof answer !== "string" || !answer.trim()) return reply(502, { ok: false, error: "لم يصل رد صالح من نموذج الذكاء الاصطناعي." });
-    return reply(200, { ok: true, answer: answer.trim(), model, remainingToday: g.remainingToday });
+    return sawRateLimit
+      ? reply(429, { ok: false, error: "الضغط على المدرس الذكي كبير حالياً. حاول بعد دقيقة." })
+      : reply(502, { ok: false, error: "حصلت مشكلة أثناء توليد الشرح. حاول مرة أخرى." });
   } catch (_e) {
     return reply(502, { ok: false, error: "تعذّر الوصول للخدمة. حاول مرة أخرى." });
   }
