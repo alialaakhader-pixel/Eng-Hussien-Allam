@@ -5,7 +5,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Content-Type": "application/json; charset=utf-8",
 };
 
@@ -14,6 +14,16 @@ const reply = (status: number, body: Record<string, unknown>) =>
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  // Health check: reports only whether the secrets exist (never their values).
+  if (req.method === "GET") {
+    return reply(200, {
+      ok: true,
+      service: "ha-ai-tutor",
+      openaiKeyConfigured: !!Deno.env.get("OPENAI_API_KEY"),
+      supabaseUrlConfigured: !!Deno.env.get("SUPABASE_URL"),
+      model: Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini",
+    });
+  }
   if (req.method !== "POST") return reply(405, { ok: false, error: "الطريقة غير مسموحة." });
 
   const apiKey = Deno.env.get("OPENAI_API_KEY");
