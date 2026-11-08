@@ -846,3 +846,8 @@ export async function teacherMistakesOverview(): Promise<TeacherMistakesOverview
   if (!r || r.topLessons === undefined) throw new Error('تعذر تحميل تحليل الأخطاء.');
   return r as TeacherMistakesOverview;
 }
+
+export interface PublicPlan { id: string; name: string; price: number; durationDays: number; grade: string | null; includesAi: boolean; lessonCount: number; examCount: number }
+export async function publicPlans(): Promise<PublicPlan[] | null> {
+  try { const r = await rpc('ha_public_plans', {}); return Array.isArray(r) ? r : null; } catch { return null; }
+}

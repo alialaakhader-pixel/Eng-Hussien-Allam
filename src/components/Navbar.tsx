@@ -154,6 +154,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             <button
+              onClick={() => handleNavClick('subscriptions')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold transition-all duration-200 ${
+                activeTab === 'subscriptions'
+                  ? 'bg-amber-500 text-slate-950 shadow-md font-black shadow-amber-500/20'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+              }`}
+            >
+              <BookCheck className="w-4 h-4" />
+              <span>الاشتراكات</span>
+            </button>
+
+            <button
               onClick={() => handleNavClick('dashboard')}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold transition-all duration-200 ${
                 activeTab === 'dashboard'
@@ -353,6 +365,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <BookCheck className="w-4 h-4" />
             <span>مركز التعلّم</span>
+          </button>
+
+          <button
+            onClick={() => handleNavClick('subscriptions')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-right ${
+              activeTab === 'subscriptions' ? 'bg-amber-500 text-slate-950' : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <BookCheck className="w-4 h-4" />
+            <span>الاشتراكات</span>
           </button>
 
           <button
