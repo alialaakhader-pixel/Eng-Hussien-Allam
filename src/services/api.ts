@@ -1,4 +1,4 @@
-import type { ServerProgress, AssignmentItem, TeacherAssignment, StudentAnalyticsRow, TutorMessage, MySubscription, PlanCatalogItem, TeacherSubsOverview } from '../types';
+import type { ServerProgress, AssignmentItem, TeacherAssignment, StudentAnalyticsRow, TutorMessage, MySubscription, PlanCatalogItem, TeacherSubsOverview, StudyItem, StudySettings, StudyState } from '../types';
 import {
   Lesson, StudentCode, StudentUser, ForumPost, ForumAnswer, PlatformNotification, GradeType,
   Exam, ExamResult, ExamResultRow, Account, AccountInfo, ExamReviewItem
@@ -742,4 +742,48 @@ export async function teacherGrantSub(student: string, planId: string, days: num
 export async function teacherSetSubStatus(id: string, status: 'active' | 'paused' | 'cancelled') {
   const r = await rpc('ha_teacher_sub_set_status', { p_id: id, p_status: status }, await teacherToken());
   if (!r?.ok) throw new Error(subErr(r?.error));
+}
+
+// ---------- Study planner & notifications ----------
+export async function studyGet(code: string): Promise<StudyState | null> {
+  try {
+    const r = await srpc('ha_study_get', { p_code: code, p_device: getDeviceId() });
+    return r?.ok ? (r as StudyState) : null;
+  } catch { return null; }
+}
+const STUDY_ERRORS: Record<string, string> = { INVALID: 'راجع البيانات: الاسم والوقت واليوم مطلوبين، ووقت النهاية بعد البداية.', LIMIT: 'وصلت للحد الأقصى من المهام (100).', NOT_FOUND: 'المهمة غير موجودة.', UNAUTHORIZED: 'سجّل دخولك أولاً.' };
+export async function studySaveItem(code: string, item: StudyItem): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const r = await srpc('ha_study_save_item', { p_code: code, p_device: getDeviceId(), p_item: item });
+    return r?.ok ? { ok: true } : { ok: false, error: STUDY_ERRORS[r?.error] || 'تعذر الحفظ.' };
+  } catch { return { ok: false, error: 'تعذر الاتصال بالخادم.' }; }
+}
+export async function studyDeleteItem(code: string, id: string): Promise<boolean> {
+  try { return !!(await srpc('ha_study_delete_item', { p_code: code, p_device: getDeviceId(), p_id: id }))?.ok; } catch { return false; }
+}
+export async function studySetDone(code: string, id: string, day: string, done: boolean): Promise<boolean> {
+  try { return !!(await srpc('ha_study_set_done', { p_code: code, p_device: getDeviceId(), p_id: id, p_day: day, p_done: done }))?.ok; } catch { return false; }
+}
+export async function studySaveSettings(code: string, s: StudySettings): Promise<boolean> {
+  try {
+    return !!(await srpc('ha_study_save_settings', {
+      p_code: code, p_device: getDeviceId(), p_tz: s.tz, p_rest: s.restDays, p_notify: s.notifyEnabled, p_summary: s.dailySummary, p_summary_time: s.summaryTime
+    }))?.ok;
+  } catch { return false; }
+}
+export async function notifMarkRead(code: string, ids: string[] | null): Promise<void> {
+  try { await srpc('ha_notif_mark_read', { p_code: code, p_device: getDeviceId(), p_ids: ids }); } catch { /* ignore */ }
+}
+export async function pushPublicKey(): Promise<string | null> {
+  try {
+    const res = await fetch(SUPABASE_URL + '/functions/v1/ha-push', { headers: { apikey: ANON_KEY } });
+    const d = await res.json().catch(() => null);
+    return res.ok && d?.publicKey ? d.publicKey : null;
+  } catch { return null; }
+}
+export async function pushSubscribe(code: string, endpoint: string, p256dh: string, auth: string): Promise<boolean> {
+  try { return !!(await srpc('ha_push_subscribe', { p_code: code, p_device: getDeviceId(), p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth }))?.ok; } catch { return false; }
+}
+export async function pushUnsubscribe(code: string, endpoint: string): Promise<void> {
+  try { await srpc('ha_push_unsubscribe', { p_code: code, p_device: getDeviceId(), p_endpoint: endpoint }); } catch { /* ignore */ }
 }

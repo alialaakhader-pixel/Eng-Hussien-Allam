@@ -285,3 +285,12 @@ export interface TeacherSubscription {
 export interface TeacherActivationCode { code: string; plan_id: string; plan: string; active: boolean; expires_at: string | null; used_by: string | null; used_at: string | null; created_at: string }
 export interface SubscriptionLogItem { id: number; code: string; student: string; action: string; details: Record<string, unknown>; actor: string; at: string }
 export interface TeacherSubsOverview { plans: TeacherPlan[]; subscriptions: TeacherSubscription[]; codes: TeacherActivationCode[]; log: SubscriptionLogItem[] }
+
+export interface StudyItem {
+  id?: string; title: string; subject: string; lessonId?: string | null; kind: 'study' | 'task';
+  repeat: 'once' | 'daily' | 'weekly'; days: number[]; onceDate?: string | null;
+  startTime: string; endTime?: string | null; remindBeforeMin: number; enabled: boolean;
+}
+export interface StudySettings { tz: string; restDays: number[]; notifyEnabled: boolean; dailySummary: boolean; summaryTime: string }
+export interface UserNotification { id: string; kind: string; title: string; body: string; createdAt: string; read: boolean }
+export interface StudyState { settings: StudySettings; items: StudyItem[]; done: { itemId: string; day: string }[]; notifications: UserNotification[]; unread: number; pushDevices: number }
