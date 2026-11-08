@@ -266,7 +266,7 @@ export interface StudentAnalyticsRow {
   last_activity: string | null;
 }
 
-export interface TutorMessage { role: 'user' | 'assistant'; content: string }
+export interface TutorMessage { role: 'user' | 'assistant'; content: string; images?: string[]; imageCount?: number }
 
 export interface MySubscription {
   id: string; planId: string; planName: string; startsAt: string; endsAt: string;

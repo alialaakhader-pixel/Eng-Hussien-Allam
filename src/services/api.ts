@@ -660,17 +660,18 @@ export async function teacherAnalytics(): Promise<StudentAnalyticsRow[]> {
 const TUTOR_ERRORS: Record<string, string> = {
   RATE_LIMIT: 'بعتّ أسئلة كتير بسرعة. استنى دقيقة وحاول تاني.',
   DAILY_LIMIT: 'وصلت للحد اليومي من أسئلة المدرس الذكي. كمّل بكرة.',
-  SUBSCRIPTION_REQUIRED: 'المدرس الذكي ضمن باقة اشتراك. فعّل اشتراكك من لوحة الطالب ← اشتراكي.'
+  SUBSCRIPTION_REQUIRED: 'المدرس الذكي ضمن باقة اشتراك. فعّل اشتراكك من لوحة الطالب ← اشتراكي.',
+  IMAGE_LIMIT: 'وصلت للحد اليومي لإرسال الصور (15 صورة). كمّل بكرة أو اكتب المسألة نصاً.'
 };
 
-export async function askTutor(code: string, grade: string, question: string, history: TutorMessage[]):
+export async function askTutor(code: string, grade: string, question: string, history: TutorMessage[], images: string[] = []):
   Promise<{ ok: true; answer: string } | { ok: false; error: string; retryable: boolean }> {
   try {
     const token = await accToken();
     const res = await fetch(SUPABASE_URL + '/functions/v1/ha-ai-tutor', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ code, device: getDeviceId(), grade, question, history: history.slice(-8) })
+      body: JSON.stringify({ code, device: getDeviceId(), grade, question, images, history: history.slice(-8).map(m => ({ role: m.role, content: m.content })) })
     });
     const data = await res.json().catch(() => null);
     if (res.ok && data?.ok) return { ok: true, answer: data.answer };
@@ -786,4 +787,11 @@ export async function pushSubscribe(code: string, endpoint: string, p256dh: stri
 }
 export async function pushUnsubscribe(code: string, endpoint: string): Promise<void> {
   try { await srpc('ha_push_unsubscribe', { p_code: code, p_device: getDeviceId(), p_endpoint: endpoint }); } catch { /* ignore */ }
+}
+
+export async function tutorHistory(code: string): Promise<TutorMessage[]> {
+  try {
+    const r = await srpc('ha_ai_history', { p_code: code, p_device: getDeviceId(), p_limit: 20 });
+    return r?.ok ? (r.messages || []).map((m: any) => ({ role: m.role, content: m.content, imageCount: m.imageCount || 0 })) : [];
+  } catch { return []; }
 }
