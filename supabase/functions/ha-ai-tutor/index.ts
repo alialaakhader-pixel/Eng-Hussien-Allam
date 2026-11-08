@@ -18,9 +18,10 @@ Deno.serve(async (req: Request) => {
 
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  if (!apiKey) return reply(503, { ok: false, error: "خدمة المدرس الذكي لم تُفعّل بعد. يلزم ضبط مفتاح OpenAI في أسرار الخادم." });
-  if (!supabaseUrl || !anonKey) return reply(503, { ok: false, error: "إعدادات التحقق من الطالب غير مكتملة على الخادم." });
+  // The publishable key is public; fall back to the one the browser sent if the env var is not injected.
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || req.headers.get("apikey") || "";
+  if (!apiKey) return reply(503, { ok: false, code: "NO_OPENAI_KEY", error: "خدمة المدرس الذكي لم تُفعّل بعد. يلزم ضبط مفتاح OpenAI في أسرار الخادم." });
+  if (!supabaseUrl || !anonKey) return reply(503, { ok: false, code: "NO_SUPABASE_ENV", error: "إعدادات التحقق من الطالب غير مكتملة على الخادم." });
 
   let body: any;
   try { body = await req.json(); } catch { return reply(400, { ok: false, error: "تعذر قراءة الطلب." }); }
@@ -70,6 +71,7 @@ Deno.serve(async (req: Request) => {
     });
     const result = await response.json().catch(() => null);
     if (!response.ok) {
+      console.error("openai_error", response.status, JSON.stringify(result?.error ?? {}).slice(0, 300));
       return response.status === 429
         ? reply(429, { ok: false, error: "الضغط على المدرس الذكي كبير حالياً. حاول بعد دقيقة." })
         : reply(502, { ok: false, error: "حصلت مشكلة أثناء توليد الشرح. حاول مرة أخرى." });
@@ -78,6 +80,6 @@ Deno.serve(async (req: Request) => {
     if (typeof answer !== "string" || !answer.trim()) return reply(502, { ok: false, error: "لم يصل رد صالح من نموذج الذكاء الاصطناعي." });
     return reply(200, { ok: true, answer: answer.trim(), model, remainingToday: g.remainingToday });
   } catch (_e) {
-    return reply(502, { ok: false, error: "تعذر الوصول للخدمة. حاول مرة أخرى." });
+    return reply(502, { ok: false, error: "تعذّر الوصول للخدمة. حاول مرة أخرى." });
   }
 });
