@@ -317,7 +317,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-slate-900 border-b border-slate-800 px-4 pt-2 pb-6 space-y-2 animate-in slide-in-from-top-4 duration-200">
+        <div className="lg:hidden bg-slate-900 border-b border-slate-800 px-4 pt-2 pb-6 space-y-2 max-h-[calc(100dvh-4.5rem)] overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
           <button
             onClick={() => handleNavClick('home')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-right ${
