@@ -316,6 +316,7 @@ export const LiveRoom: React.FC<Props> = ({ mode, classId: classIdProp, code = '
           </>)}
           {canShare && <Ctl on={screenOn} onClick={() => toggle('screen')} icOn={<Monitor className="w-5 h-5" />} icOff={<MonitorOff className="w-5 h-5" />} label={screenOn ? 'إيقاف المشاركة' : 'مشاركة الشاشة'} />}
           {role === 'teacher' && <button onClick={() => setShowDev(s => !s)} className="p-3 rounded-full bg-slate-800 text-slate-200" aria-label="الأجهزة"><Settings className="w-5 h-5" /></button>}
+          {role === 'teacher' && classStatus !== 'live' && (<span className="text-xs text-amber-300">الطلاب لا يستطيعون الدخول قبل ضغط «ابدأ البث»</span>)}
           {role === 'teacher' && classStatus !== 'live' && (
             <button onClick={async () => { try { await api.teacherLiveStatus(classId.current, 'live'); setClassStatus('live'); } catch (e: any) { setErr(e.message); } }} className="px-5 py-3 rounded-full bg-red-600 hover:bg-red-500 text-white font-black text-sm">ابدأ البث للطلاب 🔴</button>
           )}
@@ -400,7 +401,7 @@ const StudentSide: React.FC<{ code: string; classId: string; role: string; recon
       else if (s.hand !== 'accepted' && roleRef.current === 'guest') reconnect();
     };
     run();
-    const i = setInterval(run, 2000);
+    const i = setInterval(run, 3000);
     return () => { stop = true; clearInterval(i); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId, code]);
@@ -624,7 +625,7 @@ const TeacherSide: React.FC<{
             ))}
             <div className="flex items-center gap-2 mt-2 text-slate-300">
               <label className="flex items-center gap-1">أقصى عدد ضيوف
-                <select value={st?.guestsMax ?? 2} onChange={e => act(() => api.teacherLiveSettings(classId, st?.chatMode || 'open', +e.target.value, allowGuestScreen))} className="bg-slate-800 rounded px-1 py-0.5 text-white">{[0, 1, 2, 3, 4, 6, 8].map(n => <option key={n} value={n}>{n}</option>)}</select>
+                <select value={st?.guestsMax ?? 2} onChange={e => act(() => api.teacherLiveSettings(classId, st?.chatMode || 'open', +e.target.value, allowGuestScreen))} className="bg-slate-800 rounded px-1 py-0.5 text-white">{[0, 1, 2, 3, 4, 6, 8, 12, 16, 20, 30].map(n => <option key={n} value={n}>{n}</option>)}</select>
               </label>
               <label className="flex items-center gap-1"><input type="checkbox" checked={allowGuestScreen} onChange={e => act(() => api.teacherLiveSettings(classId, st?.chatMode || 'open', st?.guestsMax ?? 2, e.target.checked))} /> السماح للضيف بمشاركة الشاشة</label>
             </div>

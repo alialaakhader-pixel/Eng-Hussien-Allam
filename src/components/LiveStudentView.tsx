@@ -11,7 +11,7 @@ export const LiveStudentView: React.FC<{ currentStudent: StudentUser | null; onO
   const code = currentStudent?.codeUsed || '';
 
   const load = useCallback(async () => { if (code) setItems(await api.liveList(code)); }, [code]);
-  useEffect(() => { load(); const i = setInterval(load, 20000); return () => clearInterval(i); }, [load]);
+  useEffect(() => { load(); const i = setInterval(load, 8000); return () => clearInterval(i); }, [load]);
 
   if (!currentStudent) {
     return (
@@ -44,6 +44,7 @@ export const LiveStudentView: React.FC<{ currentStudent: StudentUser | null; onO
       {c.status === 'live' && (c.locked
         ? <button onClick={onGoSubscriptions} className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-black text-sm">🔒 المحاضرة تحتاج اشتراك — اشترك الآن</button>
         : <button onClick={() => setRoom(c)} className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-sm inline-flex items-center gap-2"><PlayCircle className="w-4 h-4" /> انضم إلى المحاضرة الآن</button>)}
+      {c.status === 'scheduled' && !c.locked && <div className="text-xs text-slate-400">لما المدرس يبدأ البث هيظهر لك زر «انضم الآن» هنا تلقائياً.</div>}
       {c.status === 'scheduled' && c.locked && <div className="text-xs text-amber-300">🔒 تحتاج اشتراك نشط لحضورها.</div>}
       {c.status === 'ended' && (
         <div className="text-xs text-slate-300 space-y-1">

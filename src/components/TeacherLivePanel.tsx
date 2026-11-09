@@ -110,7 +110,7 @@ export const TeacherLivePanel: React.FC<{ lessons: Lesson[] }> = ({ lessons }) =
           </label>
           <div className="flex items-center gap-4 flex-wrap text-xs text-slate-300">
             <label className="flex items-center gap-1.5">أقصى عدد ضيوف
-              <select value={form.guests} onChange={e => setForm({ ...form, guests: +e.target.value })} className="bg-slate-800 rounded px-2 py-1 text-white">{[0, 1, 2, 3, 4, 6, 8].map(n => <option key={n} value={n}>{n}</option>)}</select>
+              <select value={form.guests} onChange={e => setForm({ ...form, guests: +e.target.value })} className="bg-slate-800 rounded px-2 py-1 text-white">{[0, 1, 2, 3, 4, 6, 8, 12, 16, 20, 30].map(n => <option key={n} value={n}>{n}</option>)}</select>
             </label>
             <label className="flex items-center gap-1.5"><input type="checkbox" checked={form.guestScreen} onChange={e => setForm({ ...form, guestScreen: e.target.checked })} /> السماح للضيف بمشاركة الشاشة</label>
           </div>
@@ -135,7 +135,9 @@ export const TeacherLivePanel: React.FC<{ lessons: Lesson[] }> = ({ lessons }) =
               <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${ST[c.status].c}`}>{ST[c.status].t}</span>
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
-              {(c.status === 'scheduled' || c.status === 'live') && <button onClick={() => setRoom(c)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white font-black"><PlayCircle className="w-4 h-4" /> {c.status === 'live' ? 'العودة لغرفة البث' : 'فتح غرفة البث'}</button>}
+              {c.status === 'scheduled' && <button onClick={async () => { try { await api.teacherLiveStatus(c.id, 'live'); setRoom({ ...c, status: 'live' }); } catch (e: any) { setMsg(e.message); } }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white font-black"><PlayCircle className="w-4 h-4" /> ابدأ البث الآن (الطلاب يقدروا يدخلوا)</button>}
+              {c.status === 'scheduled' && <button onClick={() => setRoom(c)} className="px-3 py-1.5 rounded-lg bg-slate-800 text-white">معاينة بدون بث</button>}
+              {c.status === 'live' && <button onClick={() => setRoom(c)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white font-black"><PlayCircle className="w-4 h-4" /> العودة لغرفة البث</button>}
               {c.status === 'live' && <button onClick={() => setStatus(c, 'ended')} className="px-3 py-1.5 rounded-lg bg-slate-700 text-white font-bold">إنهاء</button>}
               {c.status === 'scheduled' && <button onClick={() => setForm({ id: c.id, title: c.title, desc: c.description, grade: c.grade, lesson: c.lessonId || '', plan: c.planId || '', codes: c.allowedCodes.join(', '), at: toLocalInput(c.scheduledAt), guests: c.guestsMax, guestScreen: c.allowGuestScreen })} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 text-white"><Pencil className="w-3.5 h-3.5" /> تعديل</button>}
               {(c.status === 'scheduled' || c.status === 'live') && <button onClick={() => { if (confirm('إلغاء المحاضرة؟')) setStatus(c, 'cancelled'); }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 text-red-300"><XCircle className="w-3.5 h-3.5" /> إلغاء</button>}
