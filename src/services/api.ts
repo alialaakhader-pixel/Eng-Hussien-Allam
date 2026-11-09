@@ -891,3 +891,133 @@ export async function teacherPaySaveSettings(s: PayInfo) {
   const r = await rpc('ha_teacher_pay_settings_save', { p_vodafone: s.vodafoneCash, p_instapay: s.instapay, p_instructions: s.instructions }, await teacherToken());
   if (!r?.ok) throw new Error('تعذر حفظ الإعدادات.');
 }
+
+// ---------------------------------------------------------------------------
+// Live classes (LiveKit media; Supabase RPCs decide who may join)
+// ---------------------------------------------------------------------------
+export interface LiveClass {
+  id: string; title: string; description: string; grade: string; scheduledAt: string; status: 'scheduled' | 'live' | 'ended' | 'cancelled';
+  startedAt?: string | null; endedAt?: string | null; paid: boolean; locked: boolean; recordingUrl: string; recordingNote: string; myMinutes: number;
+}
+export interface TeacherLiveClass {
+  id: string; title: string; description: string; grade: string; lessonId: string | null; planId: string | null; allowedCodes: string[]; scheduledAt: string;
+  status: 'scheduled' | 'live' | 'ended' | 'cancelled'; startedAt: string | null; endedAt: string | null; chatMode: 'open' | 'questions' | 'off';
+  guestsMax: number; allowGuestScreen: boolean; recordingUrl: string; recordingUntil: string | null; recordingNote: string; attendees: number;
+}
+export interface LiveMsg { id: number; code?: string; name: string; body: string; kind: 'chat' | 'question'; pinned: boolean; mine?: boolean; answered?: boolean; important?: boolean; deleted?: boolean; at: string }
+export interface LivePoll { id: string; question: string; options: string[]; mine?: number | null; correct?: number | null; status?: string; counts?: Record<string, number> }
+export interface LiveStudentState {
+  ok: boolean; error?: string; status: string; chatMode: 'open' | 'questions' | 'off'; muted: boolean; banned: boolean; hand: string | null; handId: string | null; allowGuestScreen: boolean;
+  messages: LiveMsg[]; removed: number[]; pinned: { id: number; name: string; body: string } | null; poll: LivePoll | null;
+}
+export interface LiveTeacherState {
+  ok: boolean; status: string; chatMode: 'open' | 'questions' | 'off'; guestsMax: number; allowGuestScreen: boolean; messages: LiveMsg[];
+  open: { id: number; code: string; name: string; body: string; important: boolean }[];
+  hands: { id: string; code: string; name: string; status: string }[];
+  present: { code: string; name: string; role: string; joinedAt: string; muted: boolean }[];
+  confused: number; poll: LivePoll | null; invites: { id: string; token: string; label: string }[];
+}
+export interface LiveAttendanceRow { code: string; name: string; role: string; first_join: string; last_leave: string; minutes: number; reconnects: number }
+export interface LiveTokenReply { ok: boolean; error?: string; token?: string; url?: string; role?: 'teacher' | 'student' | 'guest'; identity?: string; name?: string; room?: string; classId?: string; title?: string }
+
+export const LIVE_ERRORS: Record<string, string> = {
+  NOT_LIVE: 'المحاضرة لم تبدأ بعد.', ENDED: 'المحاضرة انتهت.', NOT_ALLOWED: 'غير مسموح لك بدخول هذه المحاضرة.', SUBSCRIPTION_REQUIRED: 'هذه المحاضرة تحتاج اشتراك نشط في الباقة المطلوبة.',
+  UNAUTHORIZED: 'سجّل الدخول أولاً.', NOT_FOUND: 'المحاضرة غير موجودة.', INVALID_INVITE: 'رابط الدعوة غير صالح أو تم إلغاؤه.', FULL: 'عدد الضيوف المسموح وصل للحد الأقصى.',
+  NAME_REQUIRED: 'اكتب اسمك أولاً.', NOT_CONFIGURED: 'خدمة البث لم يتم إعدادها بعد (مفاتيح LiveKit غير مضافة).', MUTED: 'تم كتمك من المدرس.', CHAT_OFF: 'الشات متوقف الآن.',
+  QUESTIONS_ONLY: 'المدرس فعّل وضع الأسئلة فقط.', SLOW_DOWN: 'استنى شوية قبل الرسالة الجاية.', FORBIDDEN: 'غير مصرح.', INVALID: 'بيانات غير صالحة.'
+};
+
+export async function liveToken(body: { mode: 'student' | 'teacher' | 'invite'; classId?: string; token?: string; name?: string }): Promise<LiveTokenReply> {
+  const auth = body.mode === 'teacher' ? await teacherToken() : body.mode === 'student' ? await accToken() : null;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/ha-live-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: `Bearer ${auth || ANON_KEY}` },
+      body: JSON.stringify(body.mode === 'student' ? { ...body, code: currentCode(), device: getDeviceId() } : body)
+    });
+    return await res.json();
+  } catch { return { ok: false, error: 'NETWORK' }; }
+}
+let _liveCode = '';
+export const setLiveCode = (c: string) => { _liveCode = c; };
+const currentCode = () => _liveCode;
+
+export async function liveAdmin(classId: string, identity: string, action: 'remove' | 'mute' | 'camoff') {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/ha-live-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: `Bearer ${await teacherToken()}` },
+      body: JSON.stringify({ mode: 'admin', classId, identity, action })
+    });
+    return (await res.json()).ok === true;
+  } catch { return false; }
+}
+
+export async function liveList(code: string): Promise<LiveClass[] | null> {
+  try { const r = await srpc('ha_live_list', { p_code: code, p_device: getDeviceId() }); return r?.ok ? r.classes : null; } catch { return null; }
+}
+export async function liveState(code: string, classId: string, since: number): Promise<LiveStudentState | null> {
+  try { const r = await srpc('ha_live_state', { p_code: code, p_device: getDeviceId(), p_class: classId, p_since: since }); return r?.ok ? r : null; } catch { return null; }
+}
+export async function liveSend(code: string, classId: string, body: string, kind: 'chat' | 'question') {
+  const r = await srpc('ha_live_send', { p_code: code, p_device: getDeviceId(), p_class: classId, p_body: body, p_kind: kind });
+  return r?.ok ? '' : (LIVE_ERRORS[r?.error] || 'تعذر الإرسال.');
+}
+export async function liveHand(code: string, classId: string, raise: boolean) {
+  const r = await srpc('ha_live_hand', { p_code: code, p_device: getDeviceId(), p_class: classId, p_raise: raise });
+  return r?.ok ? '' : (LIVE_ERRORS[r?.error] || 'تعذر تنفيذ الطلب.');
+}
+export async function liveConfused(code: string, classId: string) { try { await srpc('ha_live_confused', { p_code: code, p_device: getDeviceId(), p_class: classId }); } catch { /* ignore */ } }
+export async function livePollAnswer(code: string, pollId: string, choice: number) { try { await srpc('ha_live_poll_answer', { p_code: code, p_device: getDeviceId(), p_poll: pollId, p_choice: choice }); } catch { /* ignore */ } }
+export function liveLeave(code: string, classId: string) {
+  // best-effort, survives page close
+  accToken().then(t => {
+    try {
+      fetch(`${SUPABASE_URL}/rest/v1/rpc/ha_live_leave`, {
+        method: 'POST', keepalive: true,
+        headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: `Bearer ${t || ANON_KEY}` },
+        body: JSON.stringify({ p_code: code, p_device: getDeviceId(), p_class: classId })
+      });
+    } catch { /* ignore */ }
+  });
+}
+export async function liveInvitePing(token: string, leave: boolean): Promise<{ ok: boolean; status?: string }> {
+  try {
+    const r = await rpc('ha_live_invite_ping', { p_token: token, p_leave: leave }, null);
+    return r || { ok: false };
+  } catch { return { ok: false }; }
+}
+export function liveInviteLeave(token: string) {
+  try {
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/ha_live_invite_ping`, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` }, body: JSON.stringify({ p_token: token, p_leave: true }) });
+  } catch { /* ignore */ }
+}
+
+const tr = async (name: string, args: any) => rpc(name, args, await teacherToken());
+export const teacherLiveList = async (): Promise<TeacherLiveClass[]> => { const r = await tr('ha_teacher_live_list', {}); if (!Array.isArray(r)) throw new Error('تعذر تحميل المحاضرات.'); return r; };
+export async function teacherLiveSave(p: { id?: string | null; title: string; desc: string; grade: string; lesson?: string | null; plan?: string | null; codes: string[]; at: string; guests: number; guestScreen: boolean }) {
+  const r = await tr('ha_teacher_live_save', { p_id: p.id || null, p_title: p.title, p_desc: p.desc, p_grade: p.grade, p_lesson: p.lesson || null, p_plan: p.plan || null, p_codes: p.codes, p_at: p.at, p_guests: p.guests, p_guest_screen: p.guestScreen });
+  if (!r?.ok) throw new Error(LIVE_ERRORS[r?.error] || 'تعذر الحفظ.');
+  return r.id as string;
+}
+export async function teacherLiveStatus(id: string, status: 'live' | 'ended' | 'cancelled') {
+  const r = await tr('ha_teacher_live_status', { p_id: id, p_status: status });
+  if (!r?.ok) throw new Error(LIVE_ERRORS[r?.error] || 'تعذر تغيير الحالة.');
+}
+export const teacherLiveState = async (id: string, since: number): Promise<LiveTeacherState | null> => { try { const r = await tr('ha_teacher_live_state', { p_class: id, p_since: since }); return r?.ok ? r : null; } catch { return null; } };
+export const teacherLiveMsg = (id: number, action: 'delete' | 'pin' | 'unpin' | 'answered' | 'important') => tr('ha_teacher_live_msg', { p_id: id, p_action: action });
+export const teacherLiveMember = (cls: string, code: string, muted: boolean, banned: boolean) => tr('ha_teacher_live_member', { p_class: cls, p_code: code, p_muted: muted, p_banned: banned });
+export const teacherLiveSettings = (cls: string, chat: string, guests: number, guestScreen: boolean) => tr('ha_teacher_live_settings', { p_class: cls, p_chat: chat, p_guests: guests, p_guest_screen: guestScreen });
+export async function teacherLiveHand(hand: string, decision: 'accept' | 'reject' | 'end') {
+  const r = await tr('ha_teacher_live_hand', { p_hand: hand, p_decision: decision });
+  return r?.ok ? '' : (LIVE_ERRORS[r?.error] || 'تعذر تنفيذ الطلب.');
+}
+export async function teacherLiveInvite(cls: string, label: string, revoke?: string) { return tr('ha_teacher_live_invite', { p_class: cls, p_label: label, p_revoke: revoke || null }); }
+export async function teacherLivePoll(cls: string, question: string, options: string[], correct: number | null, close?: string) {
+  return tr('ha_teacher_live_poll', { p_class: cls, p_question: question, p_options: options, p_correct: correct, p_close: close || null });
+}
+export async function teacherLiveRecording(cls: string, url: string, until: string | null, note: string) {
+  const r = await tr('ha_teacher_live_recording', { p_class: cls, p_url: url, p_until: until, p_note: note });
+  if (!r?.ok) throw new Error('رابط التسجيل لازم يبدأ بـ https://');
+}
+export const teacherLiveAttendance = async (cls: string): Promise<LiveAttendanceRow[]> => { const r = await tr('ha_teacher_live_attendance', { p_class: cls }); return Array.isArray(r) ? r : []; };

@@ -11,6 +11,7 @@ import { GlassPhysicsBackground } from './components/GlassPhysicsBackground';
 import { ExamsView } from './components/ExamsView';
 import { LearningCenterView } from './components/LearningCenterView';
 import { SubscriptionsView } from './components/SubscriptionsView';
+import { LiveStudentView } from './components/LiveStudentView';
 import { ActivationNotice } from './components/ActivationNotice';
 import { applyServerProgress, mergeHeartbeat } from './utils/progress';
 
@@ -564,6 +565,14 @@ export default function App() {
             currentStudent={currentStudent}
             onOpenLoginModal={() => setShowStudentLoginModal(true)}
             onChanged={() => { if (currentStudent) loadStudent(currentStudent.codeUsed, currentStudent.grade); }}
+          />
+        )}
+
+        {activeTab === 'live' && (
+          <LiveStudentView
+            currentStudent={currentStudent}
+            onOpenLoginModal={() => setShowStudentLoginModal(true)}
+            onGoSubscriptions={() => setActiveTab('subscriptions')}
           />
         )}
 
