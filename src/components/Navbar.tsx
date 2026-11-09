@@ -61,12 +61,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-50 bg-slate-900 dark:bg-slate-950 border-b border-slate-800 text-white transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-18">
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-2 py-2 lg:py-0 lg:h-18">
           
           {/* Logo & Identity */}
           <div 
             onClick={() => handleNavClick('home')}
-            className="flex items-center gap-3.5 cursor-pointer group select-none shrink-0"
+            className="flex items-center gap-3.5 cursor-pointer group select-none shrink-0 order-1"
           >
             <div className="relative w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/25 group-hover:scale-105 transition-transform duration-300">
               <Atom className="w-6 h-6 text-slate-950 animate-spin-slow" />
@@ -76,21 +76,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
             <div className="leading-tight">
               <div className="flex items-center gap-2">
-                <span className="font-display font-black text-lg tracking-tight text-white group-hover:text-amber-400 transition-colors">
+                <span className="font-display font-black text-base sm:text-lg tracking-tight text-white group-hover:text-amber-400 transition-colors">
                   المهندس حسين علام
                 </span>
-                <span className="text-[10px] bg-amber-500/15 text-amber-400 px-2 py-0.5 rounded-full font-bold border border-amber-500/30">
+                <span className="hidden sm:inline text-[10px] bg-amber-500/15 text-amber-400 px-2 py-0.5 rounded-full font-bold border border-amber-500/30">
                   فيزياء 2026
                 </span>
               </div>
-              <p className="text-xs text-slate-400 font-medium">
+              <p className="hidden sm:block text-xs text-slate-400 font-medium">
                 ثانوية عامة · أزهر · بكالوريا
               </p>
             </div>
           </div>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-1.5 bg-slate-800/60 p-1.5 rounded-2xl border border-slate-700/50 min-w-0 flex-1 mx-3 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>button]:shrink-0 [&>button]:whitespace-nowrap">
+          <nav className="flex order-3 lg:order-2 w-full lg:w-auto items-center gap-1.5 bg-slate-800/60 p-1.5 rounded-2xl border border-slate-700/50 min-w-0 lg:flex-1 lg:mx-3 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>button]:shrink-0 [&>button]:whitespace-nowrap">
             <button
               onClick={() => handleNavClick('home')}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold transition-all duration-200 ${
@@ -191,7 +191,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Right Action Icons & Auth Badges */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0 order-2 lg:order-3">
             {/* Theme Toggle */}
             <button
               onClick={() => setDarkMode(!darkMode)}
@@ -305,7 +305,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 border border-slate-700/60"
+              className="hidden w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 items-center justify-center text-slate-300 border border-slate-700/60"
               aria-label="القائمة"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
