@@ -214,8 +214,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
             </button>
 
-            {/* Notification Bell with Dropdown */}
-            <div className="relative">
+            {/* Notification Bell with Dropdown: always at the far left; on phones the panel spans the header width */}
+            <div className="sm:relative order-last">
               <button
                 onClick={() => setShowNotifs(!showNotifs)}
                 className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 hover:text-amber-400 border border-slate-700/60 transition-colors relative"
@@ -231,7 +231,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Notifications Dropdown */}
               {showNotifs && (
-                <div className="absolute left-0 sm:right-auto sm:left-0 mt-2 w-80 sm:w-96 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute left-2 right-2 top-full mt-2 sm:right-auto sm:left-0 sm:w-96 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                     <div className="flex items-center gap-2">
                       <Bell className="w-4 h-4 text-amber-400" />
@@ -242,7 +242,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </span>
                   </div>
 
-                  <div className="divide-y divide-slate-800/60 max-h-80 overflow-y-auto mt-2">
+                  <div className="divide-y divide-slate-800/60 max-h-[60vh] sm:max-h-80 overflow-y-auto mt-2">
                     {notifications.length === 0 ? (
                       <p className="text-center py-6 text-xs text-slate-500">لا توجد إشعارات جديدة حالياً</p>
                     ) : (
