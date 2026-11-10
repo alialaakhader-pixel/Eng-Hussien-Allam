@@ -29,7 +29,7 @@ const Tile: React.FC<{ p: any; source?: any; big?: boolean; label?: string; tick
     if (!el || !track) return;
     track.attach(el);
     return () => { try { track.detach(el); } catch { /* ignore */ } };
-  }, [track, tick]);
+  }, [track]);
   const micPub = p.getTrackPublication(Track.Source.Microphone);
   return (
     <div className={`relative bg-slate-900 rounded-xl overflow-hidden border ${p.isSpeaking ? 'border-emerald-400' : 'border-slate-800'} ${big ? 'w-full h-full' : 'w-full aspect-video'}`}>
@@ -68,7 +68,6 @@ export const LiveRoom: React.FC<Props> = ({ mode, classId: classIdProp, code = '
   const [vol, setVol] = useState(1);
   const [connState, setConnState] = useState('');
   const [quality, setQuality] = useState('');
-  const [secs, setSecs] = useState(0);
   const [panel, setPanel] = useState(true);
   const [tab, setTab] = useState<'chat' | 'people' | 'tools'>('chat');
   const [classStatus, setClassStatus] = useState(startedStatus || 'live');
@@ -86,7 +85,13 @@ export const LiveRoom: React.FC<Props> = ({ mode, classId: classIdProp, code = '
   const layoutRef = useRef<Layout>('auto');
   const boardRef = useRef(false);
   const alive = useRef(true);
-  const bump = useCallback(() => setTick(t => t + 1), []);
+  const bumpPending = useRef(false);
+  // coalesce bursts of room events (speaker changes etc.) into one render per 250ms
+  const bump = useCallback(() => {
+    if (bumpPending.current) return;
+    bumpPending.current = true;
+    setTimeout(() => { bumpPending.current = false; setTick(t => t + 1); }, 250);
+  }, []);
   roleRef.current = role; layoutRef.current = layout; boardRef.current = boardOn;
 
   const sendData = useCallback((msg: any, dest?: string[]) => {
@@ -114,7 +119,22 @@ export const LiveRoom: React.FC<Props> = ({ mode, classId: classIdProp, code = '
     if (t.classId) classId.current = t.classId;
     setRole(t.role || 'student');
     roleRef.current = t.role || 'student';
-    const r: any = new Room({ adaptiveStream: true, dynacast: true, videoCaptureDefaults: { resolution: { width: 1280, height: 720, frameRate: 24 } } });
+    const r: any = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+      videoCaptureDefaults: { resolution: { width: 1280, height: 720, frameRate: 24 } },
+      audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      publishDefaults: {
+        simulcast: true,
+        videoCodec: 'vp8',
+        dtx: true,
+        red: true,
+        stopMicTrackOnMute: false,
+        videoEncoding: { maxBitrate: 1_400_000, maxFramerate: 24 },
+        screenShareEncoding: { maxBitrate: 2_500_000, maxFramerate: 15 },
+        screenShareSimulcastLayers: []
+      }
+    });
     room.current = r;
     r.on(RoomEvent.TrackSubscribed, (track: any) => {
       if (track.kind === 'audio' && audioHost.current) { const el = track.attach(); el.volume = vol; audioHost.current.appendChild(el); }
@@ -169,12 +189,6 @@ export const LiveRoom: React.FC<Props> = ({ mode, classId: classIdProp, code = '
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (phase !== 'live') return;
-    const i = setInterval(() => setSecs(s => s + 1), 1000);
-    return () => clearInterval(i);
-  }, [phase]);
 
   useEffect(() => { audioHost.current?.querySelectorAll('audio').forEach((a: any) => { a.volume = vol; }); }, [vol, tick]);
 
@@ -285,7 +299,7 @@ export const LiveRoom: React.FC<Props> = ({ mode, classId: classIdProp, code = '
         <div className="flex items-center gap-2 px-3 py-2 bg-slate-900 border-b border-slate-800 text-sm">
           <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-600 text-white text-xs font-black"><Radio className="w-3 h-3" /> {classStatus === 'live' ? 'مباشر' : 'معاينة'}</span>
           <span className="font-black text-white truncate">{title}</span>
-          <span className="text-slate-400 text-xs tabular-nums">{mmss(secs)}</span>
+          <Clock />
           <span className="flex-1" />
           {connState && connState !== ConnectionState.Connected && <span className="text-xs text-amber-300 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> {connState === ConnectionState.Reconnecting ? 'إعادة الاتصال…' : connState}</span>}
           {quality && <span className={`text-[11px] px-1.5 py-0.5 rounded ${quality === 'excellent' || quality === 'good' ? 'bg-emerald-500/20 text-emerald-300' : quality === 'poor' ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-700 text-slate-300'}`}>جودة: {({ excellent: 'ممتازة', good: 'جيدة', poor: 'ضعيفة', lost: 'منقطعة' } as any)[quality] || quality}</span>}
@@ -356,6 +370,11 @@ export const LiveRoom: React.FC<Props> = ({ mode, classId: classIdProp, code = '
   );
 };
 
+const Clock: React.FC = () => {
+  const [s, setS] = useState(0);
+  useEffect(() => { const i = setInterval(() => setS(x => x + 1), 1000); return () => clearInterval(i); }, []);
+  return <span className="text-slate-400 text-xs tabular-nums">{mmss(s)}</span>;
+};
 const Waiting = () => <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">في انتظار المدرس…</div>;
 const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col" dir="rtl">{children}</div>

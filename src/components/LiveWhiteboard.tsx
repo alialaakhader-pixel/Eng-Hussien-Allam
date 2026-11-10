@@ -9,9 +9,9 @@ const BG = '#0b1220';
 const COLORS = ['#f8fafc', '#fbbf24', '#38bdf8', '#34d399', '#f87171', '#c084fc', '#fb923c'];
 const SYMBOLS = ['²', '³', '√', 'π', 'Ω', 'Δ', 'θ', 'α', 'β', 'λ', 'μ', '×', '÷', '±', '≈', '≠', '≤', '≥', '→', '∞', '°', '⁻¹', 'ε', 'ρ', 'ω', 'Φ'];
 
-type Kind = 'pen' | 'line' | 'rect' | 'ell' | 'tx' | 'arrow' | 'tri' | 'res' | 'bat' | 'bulb' | 'sw' | 'axes' | 'er';
+type Kind = 'pen' | 'line' | 'rect' | 'ell' | 'tx' | 'arrow' | 'tri' | 'res' | 'bat' | 'bulb' | 'sw' | 'axes' | 'er' | 'cap' | 'ind' | 'dio' | 'amm' | 'vol' | 'spr' | 'inc' | 'wav' | 'blk';
 type Tool = Kind | 'laser';
-interface Stroke { id: string; k: Kind; c: string; w: number; p: number[][]; s?: string; pg?: number }
+interface Stroke { id: string; k: Kind; c: string; w: number; p: number[][]; s?: string; pg?: number; d?: number }
 
 export interface BoardHandle {
   apply: (m: any) => void;
@@ -21,13 +21,14 @@ export interface BoardHandle {
 const TOOLS: { k: Tool; label: string; group: 'draw' | 'shape' | 'phys' }[] = [
   { k: 'pen', label: 'قلم', group: 'draw' }, { k: 'tx', label: 'نص', group: 'draw' }, { k: 'er', label: 'ممحاة', group: 'draw' }, { k: 'laser', label: 'مؤشر', group: 'draw' },
   { k: 'line', label: 'خط', group: 'shape' }, { k: 'arrow', label: 'سهم / متجه', group: 'shape' }, { k: 'rect', label: 'مستطيل', group: 'shape' }, { k: 'ell', label: 'دائرة', group: 'shape' }, { k: 'tri', label: 'مثلث', group: 'shape' },
-  { k: 'axes', label: 'محاور x-y', group: 'phys' }, { k: 'res', label: 'مقاومة', group: 'phys' }, { k: 'bat', label: 'بطارية', group: 'phys' }, { k: 'bulb', label: 'مصباح', group: 'phys' }, { k: 'sw', label: 'مفتاح', group: 'phys' }
+  { k: 'axes', label: 'محاور x-y', group: 'phys' }, { k: 'wav', label: 'موجة', group: 'phys' }, { k: 'inc', label: 'مستوى مائل', group: 'phys' }, { k: 'blk', label: 'جسم (كتلة)', group: 'phys' }, { k: 'spr', label: 'زنبرك', group: 'phys' }, { k: 'cap', label: 'مكثف', group: 'phys' }, { k: 'ind', label: 'ملف', group: 'phys' }, { k: 'dio', label: 'دايود', group: 'phys' }, { k: 'amm', label: 'أميتر', group: 'phys' }, { k: 'vol', label: 'فولتميتر', group: 'phys' }, { k: 'res', label: 'مقاومة', group: 'phys' }, { k: 'bat', label: 'بطارية', group: 'phys' }, { k: 'bulb', label: 'مصباح', group: 'phys' }, { k: 'sw', label: 'مفتاح', group: 'phys' }
 ];
 const ICON: Record<string, React.ReactNode> = {
   pen: <PenLine className="w-4 h-4" />, tx: <Type className="w-4 h-4" />, er: <Eraser className="w-4 h-4" />, laser: <MousePointer2 className="w-4 h-4" />,
   line: <Minus className="w-4 h-4" />, arrow: <ArrowUpRight className="w-4 h-4" />, rect: <Square className="w-4 h-4" />, ell: <Circle className="w-4 h-4" />, tri: <Triangle className="w-4 h-4" />
 };
 const Txt = ({ t }: { t: string }) => <span className="text-[11px] font-black px-0.5">{t}</span>;
+ICON.wav = <Txt t="∿" />; ICON.inc = <Txt t="◺" />; ICON.blk = <Txt t="m" />; ICON.spr = <Txt t="ʌʌ" />; ICON.cap = <Txt t="⊣⊢" />; ICON.ind = <Txt t="∽" />; ICON.dio = <Txt t="▷|" />; ICON.amm = <Txt t="Ⓐ" />; ICON.vol = <Txt t="Ⓥ" />;
 ICON.axes = <Txt t="x‑y" />; ICON.res = <Txt t="Ω" />; ICON.bat = <Txt t="+‑" />; ICON.bulb = <Txt t="💡" />; ICON.sw = <Txt t="/ ‑" />;
 
 function drawSymbol(ctx: CanvasRenderingContext2D, k: Kind, a: number[], b: number[]) {
@@ -75,6 +76,70 @@ function drawSymbol(ctx: CanvasRenderingContext2D, k: Kind, a: number[], b: numb
     line(a, at(0.3));
     line(at(0.3), at(0.72, -L * 0.28));
     line(at(0.75), b);
+  } else if (k === 'cap') {
+    line(a, at(0.45));
+    line(at(0.45, -L * 0.17), at(0.45, L * 0.17));
+    line(at(0.55, -L * 0.17), at(0.55, L * 0.17));
+    line(at(0.55), b);
+  } else if (k === 'ind') {
+    line(a, at(0.2));
+    const ang = Math.atan2(dy, dx);
+    for (let i = 0; i < 4; i++) {
+      const c = at(0.2 + 0.15 * (i + 0.5));
+      ctx.moveTo(c[0] - u[0] * L * 0.075, c[1] - u[1] * L * 0.075);
+      ctx.arc(c[0], c[1], L * 0.075, ang + Math.PI, ang, false);
+    }
+    ctx.moveTo(...(at(0.8) as [number, number]));
+    line(at(0.8), b);
+  } else if (k === 'dio') {
+    line(a, at(0.4));
+    ctx.moveTo(...(at(0.4, -L * 0.14) as [number, number]));
+    ctx.lineTo(...(at(0.4, L * 0.14) as [number, number]));
+    ctx.lineTo(...(at(0.6) as [number, number]));
+    ctx.closePath();
+    line(at(0.6, -L * 0.14), at(0.6, L * 0.14));
+    line(at(0.6), b);
+  } else if (k === 'amm' || k === 'vol') {
+    line(a, at(0.32));
+    line(at(0.68), b);
+    const c = at(0.5);
+    ctx.moveTo(c[0] + L * 0.18, c[1]);
+    ctx.arc(c[0], c[1], L * 0.18, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.save();
+    ctx.font = `bold ${Math.max(16, L * 0.24)}px "Segoe UI", Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(k === 'amm' ? 'A' : 'V', c[0], c[1] + 1);
+    ctx.restore();
+    return;
+  } else if (k === 'spr') {
+    line(a, at(0.15));
+    ctx.moveTo(...(at(0.15) as [number, number]));
+    for (let i = 0; i < 10; i++) ctx.lineTo(...(at(0.15 + (0.7 * (i + 0.5)) / 10, i % 2 === 0 ? -L * 0.07 : L * 0.07) as [number, number]));
+    ctx.lineTo(...(at(0.85) as [number, number]));
+    line(at(0.85), b);
+  } else if (k === 'inc') {
+    const x1 = Math.min(a[0], b[0]), x2 = Math.max(a[0], b[0]), y1 = Math.min(a[1], b[1]), y2 = Math.max(a[1], b[1]);
+    ctx.moveTo(x1, y2); ctx.lineTo(x2, y2); ctx.lineTo(x2, y1); ctx.closePath();
+  } else if (k === 'wav') {
+    const x1 = Math.min(a[0], b[0]), x2 = Math.max(a[0], b[0]), ym = (a[1] + b[1]) / 2, amp = Math.abs(b[1] - a[1]) / 2;
+    ctx.moveTo(x1, ym);
+    for (let x = x1; x <= x2; x += 4) ctx.lineTo(x, ym - amp * Math.sin(((x - x1) / Math.max(x2 - x1, 1)) * Math.PI * 6));
+  } else if (k === 'blk') {
+    const x1 = Math.min(a[0], b[0]), x2 = Math.max(a[0], b[0]), y1 = Math.min(a[1], b[1]), y2 = Math.max(a[1], b[1]);
+    ctx.rect(x1, y1, x2 - x1, y2 - y1);
+    ctx.stroke();
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.fill();
+    ctx.restore();
+    ctx.font = `bold ${Math.max(18, Math.min(x2 - x1, y2 - y1) * 0.5)}px "Segoe UI", Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('m', (x1 + x2) / 2, (y1 + y2) / 2);
+    ctx.textAlign = 'start';
+    return;
   } else if (k === 'axes') {
     const x1 = Math.min(a[0], b[0]), x2 = Math.max(a[0], b[0]), y1 = Math.min(a[1], b[1]), y2 = Math.max(a[1], b[1]);
     line([x1, y2], [x2, y2]);
@@ -94,6 +159,7 @@ function paintStrokes(ctx: CanvasRenderingContext2D, strokes: Stroke[]) {
     ctx.strokeStyle = s.k === 'er' ? '#000' : s.c;
     ctx.fillStyle = s.c;
     ctx.lineWidth = s.k === 'er' ? s.w * 8 : s.w * 2;
+    ctx.setLineDash(s.d ? [s.w * 5, s.w * 4] : []);
     const P = s.p.map(([x, y]) => [x * W, y * H]);
     if (s.k === 'pen' || s.k === 'er') {
       ctx.beginPath();
@@ -120,6 +186,7 @@ function paintStrokes(ctx: CanvasRenderingContext2D, strokes: Stroke[]) {
     }
   }
   ctx.globalCompositeOperation = 'source-over';
+  ctx.setLineDash([]);
 }
 
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
@@ -132,11 +199,13 @@ export const LiveWhiteboard = forwardRef<BoardHandle, { canDraw: boolean; send?:
   const [page, setPageState] = useState(0);
   const pageRef = useRef(0);
   const [pageCount, setPageCount] = useState(1);
-  const [grid, setGridState] = useState(false);
-  const gridRef = useRef(false);
+  const [grid, setGridState] = useState(0);
+  const gridRef = useRef(0);
   const [tool, setTool] = useState<Tool>('pen');
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(3);
+  const [dashed, setDashed] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const [textAt, setTextAt] = useState<{ x: number; y: number } | null>(null);
   const [textVal, setTextVal] = useState('');
   const cur = useRef<Stroke | null>(null);
@@ -159,12 +228,20 @@ export const LiveWhiteboard = forwardRef<BoardHandle, { canDraw: boolean; send?:
     ctx.fillStyle = BG;
     ctx.fillRect(0, 0, W, H);
     if (gridRef.current) {
-      ctx.strokeStyle = 'rgba(148,163,184,0.16)';
+      const step = gridRef.current === 2 ? 25 : 100;
       ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(148,163,184,0.10)';
       ctx.beginPath();
-      for (let x = 0; x <= W; x += 100) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
-      for (let y = 0; y <= H; y += 100) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+      for (let x = 0; x <= W; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+      for (let y = 0; y <= H; y += step) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
       ctx.stroke();
+      if (gridRef.current === 2) {
+        ctx.strokeStyle = 'rgba(148,163,184,0.26)';
+        ctx.beginPath();
+        for (let x = 0; x <= W; x += 100) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+        for (let y = 0; y <= H; y += 100) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+        ctx.stroke();
+      }
     }
     ctx.drawImage(layer.current, 0, 0);
     const l = laser.current;
@@ -179,7 +256,7 @@ export const LiveWhiteboard = forwardRef<BoardHandle, { canDraw: boolean; send?:
 
   const ensure = (pg: number) => { while (pages.current.length <= pg) { pages.current.push([]); redo.current.push([]); } setPageCount(pages.current.length); };
   const gotoPage = (i: number) => { ensure(i); pageRef.current = i; setPageState(i); redraw(); };
-  const setGrid = (on: boolean) => { gridRef.current = on; setGridState(on); redraw(); };
+  const setGrid = (m: number) => { gridRef.current = m; setGridState(m); redraw(); };
 
   useImperativeHandle(ref, () => ({
     apply: (m: any) => {
@@ -188,7 +265,7 @@ export const LiveWhiteboard = forwardRef<BoardHandle, { canDraw: boolean; send?:
       else if (m.t === 'seg') {
         ensure(pg);
         let s = pages.current[pg].find(x => x.id === m.id);
-        if (!s) { s = { id: m.id, k: m.k, c: m.c, w: m.w, p: [], s: m.s, pg }; pages.current[pg].push(s); }
+        if (!s) { s = { id: m.id, k: m.k, c: m.c, w: m.w, p: [], s: m.s, pg, d: m.d }; pages.current[pg].push(s); }
         if (m.set) s.p = m.p; else s.p.push(...m.p);
       } else if (m.t === 'undo') { ensure(pg); pages.current[pg].pop(); }
       else if (m.t === 'snap') {
@@ -196,7 +273,7 @@ export const LiveWhiteboard = forwardRef<BoardHandle, { canDraw: boolean; send?:
         ensure(pg);
         pages.current[pg].push(...m.strokes);
       } else if (m.t === 'page') gotoPage(m.i);
-      else if (m.t === 'grid') setGrid(!!m.on);
+      else if (m.t === 'grid') setGrid(Number(m.m ?? (m.on ? 1 : 0)));
       else if (m.t === 'laser') {
         laser.current = { x: m.x, y: m.y, t: Date.now() };
         clearTimeout(laserTimer.current);
@@ -218,7 +295,7 @@ export const LiveWhiteboard = forwardRef<BoardHandle, { canDraw: boolean; send?:
         }
         if (group.length || pg === 0) flush();
       });
-      out.push({ t: 'grid', on: gridRef.current });
+      out.push({ t: 'grid', m: gridRef.current });
       out.push({ t: 'page', i: pageRef.current });
       return out;
     }
@@ -232,7 +309,7 @@ export const LiveWhiteboard = forwardRef<BoardHandle, { canDraw: boolean; send?:
     const now = Date.now();
     if (!send || (!force && now - lastSent.current < 70) || !pending.current.length) return;
     lastSent.current = now;
-    send({ t: 'seg', id: s.id, k: s.k, c: s.c, w: s.w, p: pending.current, pg: pageRef.current });
+    send({ t: 'seg', id: s.id, k: s.k, c: s.c, w: s.w, d: s.d, p: pending.current, pg: pageRef.current });
     pending.current = [];
   };
   const commit = (s: Stroke) => {
@@ -249,7 +326,7 @@ export const LiveWhiteboard = forwardRef<BoardHandle, { canDraw: boolean; send?:
     const id = Math.random().toString(36).slice(2, 10);
     if (tool === 'tx') { setTextAt({ x: p[0], y: p[1] }); setTextVal(''); return; }
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-    cur.current = { id, k: tool as Kind, c: color, w: width, p: [p] };
+    cur.current = { id, k: tool as Kind, c: color, w: width, p: [p], d: dashed ? 1 : 0 };
     pending.current = [p];
     if (tool === 'pen' || tool === 'er') flush(cur.current, true);
     redraw();
@@ -275,7 +352,7 @@ export const LiveWhiteboard = forwardRef<BoardHandle, { canDraw: boolean; send?:
     cur.current = null;
     if (s.id === 'laser') { laserTimerClear(); return; }
     if (s.k === 'pen' || s.k === 'er') flush(s, true);
-    else send?.({ t: 'seg', id: s.id, k: s.k, c: s.c, w: s.w, p: s.p, set: true, pg: pageRef.current });
+    else send?.({ t: 'seg', id: s.id, k: s.k, c: s.c, w: s.w, d: s.d, p: s.p, set: true, pg: pageRef.current });
     commit(s);
     pending.current = [];
     redraw();
@@ -305,7 +382,7 @@ export const LiveWhiteboard = forwardRef<BoardHandle, { canDraw: boolean; send?:
     const s = redo.current[pageRef.current].pop();
     if (!s) return;
     pages.current[pageRef.current].push(s);
-    send?.({ t: 'seg', id: s.id, k: s.k, c: s.c, w: s.w, p: s.p, s: s.s, set: true, pg: pageRef.current });
+    send?.({ t: 'seg', id: s.id, k: s.k, c: s.c, w: s.w, d: s.d, p: s.p, s: s.s, set: true, pg: pageRef.current });
     redraw(); force(x => x + 1);
   };
   const clear = () => {
@@ -319,7 +396,7 @@ export const LiveWhiteboard = forwardRef<BoardHandle, { canDraw: boolean; send?:
     gotoPage(i);
     send?.({ t: 'page', i });
   };
-  const toggleGrid = () => { const v = !gridRef.current; setGrid(v); send?.({ t: 'grid', on: v }); };
+  const toggleGrid = () => { const v = (gridRef.current + 1) % 3; setGrid(v); send?.({ t: 'grid', m: v }); };
   const save = () => {
     const a = document.createElement('a');
     a.download = `سبورة-صفحة${pageRef.current + 1}-${new Date().toISOString().slice(0, 16)}.png`;
@@ -347,7 +424,8 @@ export const LiveWhiteboard = forwardRef<BoardHandle, { canDraw: boolean; send?:
           <Sep />
           <button onClick={undo} disabled={!list.length} title="تراجع" className="h-9 w-9 flex items-center justify-center rounded-lg bg-slate-800 text-slate-200 disabled:opacity-40"><Undo2 className="w-4 h-4" /></button>
           <button onClick={redoIt} disabled={!redo.current[page]?.length} title="إعادة" className="h-9 w-9 flex items-center justify-center rounded-lg bg-slate-800 text-slate-200 disabled:opacity-40"><Redo2 className="w-4 h-4" /></button>
-          <button onClick={toggleGrid} title="شبكة" className={`h-9 w-9 flex items-center justify-center rounded-lg ${grid ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-200'}`}><Grid3x3 className="w-4 h-4" /></button>
+          <button onClick={toggleGrid} title={grid === 0 ? 'تشغيل الشبكة' : grid === 1 ? 'ورق رسم بياني' : 'إيقاف الشبكة'} className={`h-9 w-9 flex items-center justify-center rounded-lg ${grid ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-200'}`}><Grid3x3 className="w-4 h-4" /></button>
+          <button onClick={() => setDashed(d => !d)} title="خط متقطع" className={`h-9 px-2 flex items-center justify-center rounded-lg text-xs font-black ${dashed ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-200'}`}>‑ ‑ ‑</button>
           <Sep />
           <button onClick={() => flip(page - 1)} disabled={page === 0} title="الصفحة السابقة" className="h-9 w-8 flex items-center justify-center rounded-lg bg-slate-800 text-slate-200 disabled:opacity-40"><ChevronRight className="w-4 h-4" /></button>
           <span className="text-xs text-slate-300 tabular-nums px-0.5">{page + 1}/{pageCount}</span>
@@ -358,9 +436,16 @@ export const LiveWhiteboard = forwardRef<BoardHandle, { canDraw: boolean; send?:
           <button onClick={clear} title="مسح الصفحة" className="h-9 w-9 flex items-center justify-center rounded-lg bg-red-500/20 text-red-300"><Trash2 className="w-4 h-4" /></button>
         </div>
       )}
-      {!canDraw && pageCount > 1 && <div className="text-center text-[11px] text-slate-500 py-0.5">صفحة {page + 1} من {pageCount}</div>}
-      <div className="flex-1 min-h-0 flex items-center justify-center p-1">
-        <div className="relative w-full max-h-full" style={{ aspectRatio: '16 / 9' }}>
+      {!canDraw && (
+        <div className="flex items-center justify-center gap-2 py-0.5 text-[11px] text-slate-400">
+          {pageCount > 1 && <span>صفحة {page + 1} من {pageCount}</span>}
+          <button onClick={() => setZoom(z => Math.max(1, +(z - 0.5).toFixed(1)))} className="px-2 rounded bg-slate-800 text-white">−</button>
+          <span className="tabular-nums">{Math.round(zoom * 100)}%</span>
+          <button onClick={() => setZoom(z => Math.min(3, +(z + 0.5).toFixed(1)))} className="px-2 rounded bg-slate-800 text-white">+</button>
+        </div>
+      )}
+      <div className={`flex-1 min-h-0 flex ${zoom > 1 ? 'overflow-auto items-start' : 'items-center'} justify-center p-1`}>
+        <div className="relative max-h-full shrink-0" style={{ aspectRatio: '16 / 9', width: `${zoom * 100}%` }}>
           <canvas
             ref={cv}
             width={W}

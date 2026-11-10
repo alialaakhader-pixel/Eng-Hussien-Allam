@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import { Exam, Lesson, TeacherPlan, TeacherSubsOverview } from '../types';
 import * as api from '../services/api';
+import { PlanPosterImg } from './PlanPoster';
 import { formatCairo } from '../utils/progress';
 import { TeacherPaymentsPanel } from './TeacherPaymentsPanel';
 
@@ -195,8 +196,11 @@ export const TeacherSubscriptionsPanel: React.FC<{ lessons: Lesson[]; exams: Exa
           <div className="space-y-2">
             {plans.length === 0 && <div className="text-xs text-slate-400">لا توجد باقات بعد.</div>}
             {plans.map(p => (
-              <div key={p.id} className="rounded-2xl bg-slate-900 border border-slate-800 p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div>
+              <div key={p.id} className="rounded-2xl bg-slate-900 border border-slate-800 p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="w-full sm:w-44 shrink-0">
+                  <PlanPosterImg plan={{ name: p.name, price: p.price, durationDays: p.durationDays, grade: p.grade, includesAi: p.includesAi, lessonCount: p.lessonIds.length, examCount: p.examIds.length }} download />
+                </div>
+                <div className="flex-1 min-w-[10rem]">
                   <div className="font-black text-sm">{p.name} {!p.active && <span className="text-slate-500">(موقوفة)</span>}</div>
                   <div className="text-slate-400">{p.price} ج.م · {p.durationDays} يوم · {p.grade || 'كل الصفوف'} · {p.lessonIds.length} محاضرة · {p.examIds.length} امتحان{p.includesAi ? ' · AI' : ''} · {p.subscribers} مشترك نشط</div>
                 </div>
