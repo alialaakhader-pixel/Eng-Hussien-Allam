@@ -1,0 +1,3 @@
+-- Applied as "teacher_messages_show_in_bell": ha_teacher_send_message and ha_teacher_sub_set_status now also write to
+-- public.ha_notifications (grade / target_codes), which is what ha_feed() returns to the student's bell.
+-- Already-sent messages were backfilled from ha_teacher_messages. See the applied migration for the full function bodies.
