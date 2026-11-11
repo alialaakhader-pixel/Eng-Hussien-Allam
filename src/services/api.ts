@@ -745,6 +745,21 @@ export async function teacherSetSubStatus(id: string, status: 'active' | 'paused
   if (!r?.ok) throw new Error(subErr(r?.error));
 }
 
+export async function teacherDeleteSub(id: string): Promise<void> {
+  const r = await rpc('ha_teacher_sub_delete', { p_id: id }, await teacherToken());
+  if (!r?.ok) throw new Error(subErr(r?.error));
+}
+export interface TeacherMsg { id: string; title: string; body: string; target: string; sent_count: number; created_at: string }
+export async function teacherSendMessage(title: string, body: string, target: string): Promise<number> {
+  const r = await rpc('ha_teacher_send_message', { p_title: title, p_body: body, p_target: target }, await teacherToken());
+  if (!r?.ok) throw new Error(r?.error === 'EMPTY' ? 'اكتب عنوان الرسالة ونصها.' : 'تعذر إرسال الرسالة.');
+  return Number(r.sent) || 0;
+}
+export async function teacherMessages(): Promise<TeacherMsg[]> {
+  const r = await tq('/rest/v1/ha_teacher_messages?select=*&order=created_at.desc&limit=30');
+  return Array.isArray(r) ? r : [];
+}
+
 // ---------- Study planner & notifications ----------
 export async function studyGet(code: string): Promise<StudyState | null> {
   try {

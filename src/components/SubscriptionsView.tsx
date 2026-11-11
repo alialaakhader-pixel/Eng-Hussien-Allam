@@ -4,7 +4,7 @@ import { MySubscription, StudentUser } from '../types';
 import * as api from '../services/api';
 import { formatCairo } from '../utils/progress';
 import { prepareImage } from '../utils/image';
-import { PlanPosterImg } from './PlanPoster';
+import { PlanPosterImg, templateFor } from './PlanPoster';
 
 const GRADES = [
   { id: '1ث', label: 'الصف الأول الثانوي', short: 'أولى ثانوي', src: '/grades/grade-1.webp', alt: 'المهندس حسين علام - فيزياء الصف الأول الثانوي' },
@@ -130,7 +130,7 @@ const GradeColumn: React.FC<{
         {plans.length === 0 && <div className="rounded-2xl bg-slate-900/70 border border-slate-700 p-3 text-xs text-slate-400">لا توجد باقات لهذه المرحلة حالياً. المحتوى المتاح مجاني.</div>}
         {plans.map(p => (
           <div key={p.id} className="rounded-2xl bg-slate-900/80 border border-slate-700 p-3 text-xs space-y-1">
-            <PlanPosterImg plan={p} />
+            <PlanPosterImg plan={p} template={templateFor(p.id)} />
             <div className="flex items-center justify-between gap-2 pt-1">
               <span className="font-black text-sm text-white">{p.name}</span>
               <span className="font-black text-amber-300">{p.price > 0 ? `${p.price} ج.م` : 'مجاناً'}</span>

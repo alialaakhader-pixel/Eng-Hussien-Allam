@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import { Exam, Lesson, TeacherPlan, TeacherSubsOverview } from '../types';
 import * as api from '../services/api';
-import { PlanPosterImg } from './PlanPoster';
+import { PlanPosterImg, PlanPosterGallery, templateFor } from './PlanPoster';
 import { formatCairo } from '../utils/progress';
 import { TeacherPaymentsPanel } from './TeacherPaymentsPanel';
 
@@ -148,7 +148,8 @@ export const TeacherSubscriptionsPanel: React.FC<{ lessons: Lesson[]; exams: Exa
                   <span className={`px-2 py-0.5 rounded-full font-bold ${STATUS_CLS[s.status]}`}>{STATUS_AR[s.status]}</span>
                   {s.raw_status === 'active' && <button disabled={busy} onClick={() => run(() => api.teacherSetSubStatus(s.id, 'paused'), 'تم إيقاف الاشتراك')} className="px-2 py-1 rounded-lg bg-slate-800 border border-slate-700">إيقاف</button>}
                   {s.raw_status !== 'active' && <button disabled={busy} onClick={() => run(() => api.teacherSetSubStatus(s.id, 'active'), 'تم استئناف الاشتراك')} className="px-2 py-1 rounded-lg bg-slate-800 border border-slate-700">استئناف</button>}
-                  {s.raw_status !== 'cancelled' && <button disabled={busy} onClick={() => { if (confirm('إلغاء هذا الاشتراك؟')) run(() => api.teacherSetSubStatus(s.id, 'cancelled'), 'تم إلغاء الاشتراك'); }} className="px-2 py-1 rounded-lg bg-red-500/10 text-red-300 border border-red-500/30">إلغاء</button>}
+                  {s.raw_status !== 'cancelled' && <button disabled={busy} onClick={() => { if (confirm('إلغاء هذا الاشتراك؟ الطالب هيوصله إشعار وهيتقفل عنه المحتوى فوراً.')) run(() => api.teacherSetSubStatus(s.id, 'cancelled'), 'تم إلغاء الاشتراك'); }} className="px-2 py-1 rounded-lg bg-red-500/10 text-red-300 border border-red-500/30">إلغاء</button>}
+                  <button disabled={busy} onClick={() => { if (confirm('حذف الاشتراك نهائياً من السجل؟')) run(() => api.teacherDeleteSub(s.id), 'تم حذف الاشتراك'); }} className="px-2 py-1 rounded-lg bg-red-500/10 text-red-300 border border-red-500/30" title="حذف نهائي"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               </div>
             ))}
@@ -198,12 +199,13 @@ export const TeacherSubscriptionsPanel: React.FC<{ lessons: Lesson[]; exams: Exa
             {plans.map(p => (
               <div key={p.id} className="rounded-2xl bg-slate-900 border border-slate-800 p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="w-full sm:w-44 shrink-0">
-                  <PlanPosterImg plan={{ name: p.name, price: p.price, durationDays: p.durationDays, grade: p.grade, includesAi: p.includesAi, lessonCount: p.lessonIds.length, examCount: p.examIds.length }} download />
+                  <PlanPosterImg template={templateFor(p.id)} plan={{ name: p.name, price: p.price, durationDays: p.durationDays, grade: p.grade, includesAi: p.includesAi, lessonCount: p.lessonIds.length, examCount: p.examIds.length }} download />
                 </div>
                 <div className="flex-1 min-w-[10rem]">
                   <div className="font-black text-sm">{p.name} {!p.active && <span className="text-slate-500">(موقوفة)</span>}</div>
                   <div className="text-slate-400">{p.price} ج.م · {p.durationDays} يوم · {p.grade || 'كل الصفوف'} · {p.lessonIds.length} محاضرة · {p.examIds.length} امتحان{p.includesAi ? ' · AI' : ''} · {p.subscribers} مشترك نشط</div>
                 </div>
+                <div className="w-full"><PlanPosterGallery plan={{ name: p.name, price: p.price, durationDays: p.durationDays, grade: p.grade, includesAi: p.includesAi, lessonCount: p.lessonIds.length, examCount: p.examIds.length }} /></div>
                 <div className="flex gap-2">
                   <button onClick={() => editPlan(p)} className="px-2 py-1 rounded-lg bg-slate-800 border border-slate-700">تعديل</button>
                   <button disabled={busy} onClick={() => { if (confirm('حذف الباقة؟ لو لها اشتراكات هتتوقف بدل الحذف.')) run(async () => { await api.teacherPlanDelete(p.id); }, 'تم'); }} className="px-2 py-1 rounded-lg bg-red-500/10 text-red-300 border border-red-500/30"><Trash2 className="w-3.5 h-3.5" /></button>

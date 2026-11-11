@@ -34,6 +34,7 @@ import { TeacherExamsPanel } from './TeacherExamsPanel';
 import { TeacherAssignmentsPanel } from './TeacherAssignmentsPanel';
 import { TeacherInsightsPanel } from './TeacherInsightsPanel';
 import { TeacherSubscriptionsPanel } from './TeacherSubscriptionsPanel';
+import { TeacherMessagesPanel } from './TeacherMessagesPanel';
 import { TeacherLivePanel } from './TeacherLivePanel';
 import { TeacherMistakesPanel } from './TeacherMistakesPanel';
 import { generateRandomCode } from '../services/store';
@@ -89,7 +90,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   onDeleteExam,
   onDeleteExamResult
 }) => {
-  const [activeTab, setActiveTab] = useState<'upload' | 'codes' | 'students' | 'forum' | 'lessons' | 'accounts' | 'exams' | 'assignments' | 'insights' | 'subscriptions' | 'live'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'codes' | 'students' | 'forum' | 'lessons' | 'accounts' | 'exams' | 'assignments' | 'insights' | 'subscriptions' | 'live' | 'messages'>('upload');
   
   // ---- 1. Upload Lesson State (Fully custom inputs as requested) ----
   const [title, setTitle] = useState('');
@@ -510,6 +511,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         >
           <Award className="w-4 h-4" />
           <span>الاشتراكات 💳</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('messages')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all ${
+            activeTab === 'messages'
+              ? 'bg-amber-500 text-slate-950 shadow-md font-black shadow-amber-500/20'
+              : 'bg-slate-800/70 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/60'
+          }`}
+        >
+          <Award className="w-4 h-4" />
+          <span>رسائل للطلاب 🔔</span>
         </button>
         <button
           onClick={() => setActiveTab('live')}
@@ -1006,6 +1018,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
       {activeTab === 'subscriptions' && <TeacherSubscriptionsPanel lessons={lessons} exams={exams} />}
       {activeTab === 'live' && <TeacherLivePanel lessons={lessons} />}
+      {activeTab === 'messages' && <TeacherMessagesPanel />}
 
       {activeTab === 'exams' && (
         <TeacherExamsPanel
