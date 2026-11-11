@@ -51,6 +51,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
 }) => {
   // Chart tab: daily, weekly, monthly, quizzes
   const [metricTab, setMetricTab] = useState<'watch' | 'quizzes'>('watch');
+  const [idCopied, setIdCopied] = useState(false);
 
   const studentName = currentStudent ? currentStudent.name : 'طالب الفيزياء';
   const studentGrade = currentStudent?.grade || '3ث';
@@ -140,11 +141,6 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
                 <GraduationCap className="w-3.5 h-3.5" />
                 <span>{studentGrade === '1ث' ? 'الصف الأول الثانوي' : studentGrade === '2ث' ? 'الصف الثاني الثانوي' : 'الصف الثالث الثانوي'}</span>
               </span>
-              {currentStudent && (
-                <span className="text-xs text-slate-400 font-mono">
-                  كود الطالب: {currentStudent.codeUsed}
-                </span>
-              )}
             </div>
             
             <h1 className="text-2xl sm:text-3xl font-display font-black text-white">
@@ -153,6 +149,19 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
             <p className="text-sm text-slate-300 mt-1 max-w-xl leading-relaxed">
               منصة المهندس حسين علام للفيزياء — تابع تقدمك الحقيقي في المحاضرات وأيام دخولك ووقت مشاهدتك الفعلي.
             </p>
+            {currentStudent && (
+              <button
+                type="button"
+                onClick={() => { try { navigator.clipboard?.writeText(currentStudent.codeUsed); setIdCopied(true); setTimeout(() => setIdCopied(false), 1800); } catch { /* ignore */ } }}
+                className="mt-3 inline-flex items-center gap-2.5 rounded-xl bg-slate-950/60 border border-amber-500/40 px-3.5 py-2 hover:bg-slate-950/80 transition"
+                title="اضغط لنسخ الـID"
+              >
+                <KeyRound className="w-4 h-4 text-amber-400" />
+                <span className="text-[11px] font-bold text-slate-400">ID الطالب</span>
+                <span dir="ltr" className="font-mono font-black text-base tracking-wider text-amber-300">{currentStudent.codeUsed}</span>
+                <span className="text-[10px] font-bold text-slate-500">{idCopied ? 'تم النسخ ✓' : 'نسخ'}</span>
+              </button>
+            )}
           </div>
 
           {/* Quick Streak & Total Watch Box */}
